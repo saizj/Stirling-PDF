@@ -36,6 +36,7 @@ import { convertOperationConfig } from "@app/hooks/tools/convert/useConvertOpera
 import { removeCertificateSignOperationConfig } from "@app/hooks/tools/removeCertificateSign/useRemoveCertificateSignOperation";
 import { changePermissionsOperationConfig } from "@app/hooks/tools/changePermissions/useChangePermissionsOperation";
 import { certSignOperationConfig } from "@app/hooks/tools/certSign/useCertSignOperation";
+import { serverCertSignOperationConfig } from "@app/hooks/tools/serverCertSign/useServerCertSignOperation";
 import { timestampPdfOperationConfig } from "@app/hooks/tools/timestampPdf/useTimestampPdfOperation";
 import { bookletImpositionOperationConfig } from "@app/hooks/tools/bookletImposition/useBookletImpositionOperation";
 import { mergeOperationConfig } from "@app/hooks/tools/merge/useMergeOperation";
@@ -179,6 +180,28 @@ export function useTranslatedToolCatalog(): TranslatedToolCatalog {
           () =>
             import("@app/components/tools/certSign/CertSignAutomationSettings"),
         ),
+      },
+      serverCertSign: {
+        icon: (
+          <LocalIcon
+            icon="draw-outline-rounded"
+            width="1.5rem"
+            height="1.5rem"
+          />
+        ),
+        name: t("home.serverCertSign.title", "Sign with signature box"),
+        component: lazy(() => import("@app/tools/ServerCertSign")),
+        description: t(
+          "home.serverCertSign.desc",
+          "Draw and place a signature, then sign with a stored server certificate",
+        ),
+        categoryId: ToolCategoryId.STANDARD_TOOLS,
+        subcategoryId: SubcategoryId.SIGNING,
+        synonyms: getSynonyms(t, "serverCertSign"),
+        maxFiles: -1,
+        endpoints: ["cert-sign"],
+        operationConfig: asRegistryConfig(serverCertSignOperationConfig),
+        automationSettings: null,
       },
       timestampPdf: {
         icon: (

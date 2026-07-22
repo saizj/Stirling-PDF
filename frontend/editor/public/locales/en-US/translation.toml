@@ -11095,3 +11095,22 @@ loadError = "Could not load stored certificates."
 uploadError = "Could not add the certificate. Check the file and password."
 deleteError = "Could not delete the certificate."
 defaultError = "Could not set the active certificate."
+
+[home.serverCertSign]
+title = "Sign with signature box"
+desc = "Draw and place a signature, then sign with a stored server certificate"
+
+[serverCertSign]
+noCertificate = "No certificate stored. Add one in Settings → Certificates first."
+usingCertificate = "Signing with"
+
+[serverCertSign.steps]
+certificate = "Certificate"
+place = "Draw & place signature"
+
+[serverCertSign.sign]
+submit = "Sign PDF"
+results = "Signed PDF"
+
+[serverCertSign.error]
+failed = "An error occurred while signing the document."
