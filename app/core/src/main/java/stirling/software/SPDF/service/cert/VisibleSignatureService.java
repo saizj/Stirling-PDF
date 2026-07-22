@@ -6,18 +6,30 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.KeyStore;
 import java.util.Calendar;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.common.PDStream;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
+import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
+import org.apache.pdfbox.pdmodel.interactive.form.PDField;
+import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,16 +40,16 @@ import stirling.software.SPDF.controller.api.security.CertSignController;
 import stirling.software.common.service.CustomPDFDocumentFactory;
 
 /**
- * Blasai fork feature (Phase 2): applies a signature whose visible mark is a user-drawn/composed
- * image placed at an arbitrary rectangle (Adobe-style), then covers it with an INVISIBLE
- * cryptographic signature.
+ * Blasai fork feature (Phase 2): a signature whose visible mark is a user drawn/composed image
+ * placed at an arbitrary rectangle (Adobe-style), coupled with a real CLICKABLE signature field.
  *
- * <p>Two passes: (1) stamp the opaque image onto the page as ordinary content; (2) apply an
- * invisible signature over the stamped document. Embedding the image as an in-field signature
- * appearance (PDFBox {@code setVisualSignature}) produced a resource tree Adobe Acrobat rejects
- * ("Se esperaba un objeto diccionario"); an invisible signature over stamped content validates
- * cleanly in Adobe while remaining visually identical and tamper-evident (the signature covers the
- * stamp). Reuses {@link CertSignController.CreateSignature} for the cryptography only.
+ * <p>Two passes: (1) stamp the opaque image onto the page as ordinary content so it renders in
+ * every viewer; (2) apply a VISIBLE signature at the same rectangle with an EMPTY (transparent)
+ * appearance so Adobe shows a clickable signature region that opens the signature panel — while the
+ * stamped image shows through underneath. An image embedded INSIDE the signature appearance
+ * produced a resource tree Adobe rejects ("Se esperaba un objeto diccionario"); an empty appearance
+ * keeps the field's object graph trivial. The signature covers the stamp (tamper-evident). Reuses
+ * {@link CertSignController.CreateSignature} for the cryptography only.
  *
  * <p>Placement coordinates arrive as fractions (0..1) of the page with a top-left origin (matching
  * the frontend overlay); they are converted to PDFBox's bottom-left point space here.
@@ -68,23 +80,28 @@ public class VisibleSignatureService {
             String reason)
             throws Exception {
 
+        int pageIndex;
+        float[] rectPoints;
+
         // Pass 1: stamp the opaque signature image onto the page as ordinary content.
         byte[] stamped;
         try (PDDocument doc = pdfDocumentFactory.load(pdf)) {
-            int pageIndex = clampPage(placement.pageIndex(), doc.getNumberOfPages());
+            pageIndex = clampPage(placement.pageIndex(), doc.getNumberOfPages());
             PDPage page = doc.getPage(pageIndex);
             PDRectangle rect = toPdfRectangle(page.getMediaBox(), placement);
+            rectPoints =
+                    new float[] {
+                        rect.getLowerLeftX(),
+                        rect.getLowerLeftY(),
+                        rect.getWidth(),
+                        rect.getHeight()
+                    };
             PDImageXObject image = buildOpaqueImage(doc, signatureImage);
             if (image != null) {
                 try (PDPageContentStream cs =
                         new PDPageContentStream(
                                 doc, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
-                    cs.drawImage(
-                            image,
-                            rect.getLowerLeftX(),
-                            rect.getLowerLeftY(),
-                            rect.getWidth(),
-                            rect.getHeight());
+                    cs.drawImage(image, rectPoints[0], rectPoints[1], rectPoints[2], rectPoints[3]);
                 }
             }
             ByteArrayOutputStream stampedOut = new ByteArrayOutputStream();
@@ -92,7 +109,8 @@ public class VisibleSignatureService {
             stamped = stampedOut.toByteArray();
         }
 
-        // Pass 2: apply an invisible cryptographic signature over the stamped document.
+        // Pass 2: apply a VISIBLE signature (empty appearance) over the stamped document so the
+        // region is clickable in Adobe.
         CertSignController.CreateSignature createSignature =
                 new CertSignController.CreateSignature(keyStore, password);
         try (PDDocument doc = pdfDocumentFactory.load(stamped)) {
@@ -104,9 +122,16 @@ public class VisibleSignatureService {
             signature.setReason(reason);
             signature.setSignDate(Calendar.getInstance());
 
+            PDRectangle widgetRect =
+                    new PDRectangle(rectPoints[0], rectPoints[1], rectPoints[2], rectPoints[3]);
+
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            doc.addSignature(signature, createSignature);
-            doc.saveIncremental(output);
+            try (SignatureOptions options = new SignatureOptions()) {
+                options.setVisualSignature(buildEmptyAppearance(doc, pageIndex, widgetRect));
+                options.setPage(pageIndex);
+                doc.addSignature(signature, createSignature, options);
+                doc.saveIncremental(output);
+            }
             return output.toByteArray();
         }
     }
@@ -126,6 +151,52 @@ public class VisibleSignatureService {
         float x = mediaBox.getLowerLeftX() + p.xFraction() * pageWidth;
         float y = mediaBox.getLowerLeftY() + pageHeight - (p.yFraction() * pageHeight) - height;
         return new PDRectangle(x, y, width, height);
+    }
+
+    /**
+     * Build a clickable signature widget with an EMPTY (transparent, no-resource) appearance at the
+     * given rectangle. Adapted from PDFBox's CreateVisibleSignature2 but with no drawn content, so
+     * the field's object graph stays trivial and Adobe accepts it while the stamped image shows
+     * through underneath.
+     */
+    private InputStream buildEmptyAppearance(PDDocument srcDoc, int pageIndex, PDRectangle rect)
+            throws IOException {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(srcDoc.getPage(pageIndex).getMediaBox());
+            doc.addPage(page);
+            PDAcroForm acroForm = new PDAcroForm(doc);
+            doc.getDocumentCatalog().setAcroForm(acroForm);
+            PDSignatureField signatureField = new PDSignatureField(acroForm);
+            PDAnnotationWidget widget = signatureField.getWidgets().get(0);
+            List<PDField> acroFormFields = acroForm.getFields();
+            acroForm.setSignaturesExist(true);
+            acroForm.setAppendOnly(true);
+            acroForm.getCOSObject().setDirect(true);
+            acroFormFields.add(signatureField);
+
+            widget.setRectangle(rect);
+
+            PDStream stream = new PDStream(doc);
+            PDFormXObject form = new PDFormXObject(stream);
+            form.setResources(new PDResources());
+            form.setFormType(1);
+            form.setBBox(new PDRectangle(rect.getWidth(), rect.getHeight()));
+
+            PDAppearanceDictionary appearance = new PDAppearanceDictionary();
+            appearance.getCOSObject().setDirect(true);
+            PDAppearanceStream appearanceStream = new PDAppearanceStream(form.getCOSObject());
+            appearance.setNormalAppearance(appearanceStream);
+            widget.setAppearance(appearance);
+
+            // Empty content stream — draw nothing so the stamp underneath shows.
+            try (PDPageContentStream cs = new PDPageContentStream(doc, appearanceStream)) {
+                // intentionally empty
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            doc.save(baos);
+            return new ByteArrayInputStream(baos.toByteArray());
+        }
     }
 
     /**
