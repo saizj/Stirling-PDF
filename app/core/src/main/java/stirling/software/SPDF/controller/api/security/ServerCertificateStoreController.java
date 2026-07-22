@@ -1,6 +1,7 @@
 package stirling.software.SPDF.controller.api.security;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Base64;
 import java.util.List;
 
 import org.springframework.http.MediaType;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import stirling.software.SPDF.service.cert.ServerCertificateStore;
 import stirling.software.SPDF.service.cert.ServerCertificateStore.CertEntry;
 import stirling.software.SPDF.service.cert.ServerCertificateStore.ResolvedKeyStore;
+import stirling.software.SPDF.service.cert.VisibleSignatureService;
 import stirling.software.common.service.CustomPDFDocumentFactory;
 import stirling.software.common.util.WebResponseUtils;
 
@@ -41,6 +43,7 @@ public class ServerCertificateStoreController {
 
     private final ServerCertificateStore store;
     private final CustomPDFDocumentFactory pdfDocumentFactory;
+    private final VisibleSignatureService visibleSignatureService;
 
     @GetMapping
     @Operation(
@@ -91,16 +94,43 @@ public class ServerCertificateStoreController {
             @RequestParam(value = "location", required = false) String location,
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
-            @RequestParam(value = "showLogo", defaultValue = "true") Boolean showLogo)
+            @RequestParam(value = "showLogo", defaultValue = "true") Boolean showLogo,
+            @RequestParam(value = "signatureImage", required = false) String signatureImage,
+            @RequestParam(value = "x", required = false) Float x,
+            @RequestParam(value = "y", required = false) Float y,
+            @RequestParam(value = "width", required = false) Float width,
+            @RequestParam(value = "height", required = false) Float height)
             throws Exception {
 
         ResolvedKeyStore resolved = store.resolve(certId);
-        CertSignController.CreateSignature createSignature =
-                new CertSignController.CreateSignature(resolved.keyStore(), resolved.password());
-
         // sign() expects a 0-indexed page; the API takes 1-indexed (default page 1).
         int pageIndex = (pageNumber != null && pageNumber > 0) ? pageNumber - 1 : 0;
 
+        // Adobe-style path: a hand-drawn image placed at an explicit rectangle.
+        if (signatureImage != null
+                && !signatureImage.isBlank()
+                && x != null
+                && y != null
+                && width != null
+                && height != null) {
+            VisibleSignatureService.Placement placement =
+                    new VisibleSignatureService.Placement(pageIndex, x, y, width, height);
+            byte[] signed =
+                    visibleSignatureService.sign(
+                            fileInput,
+                            resolved.keyStore(),
+                            resolved.password(),
+                            placement,
+                            decodeImage(signatureImage),
+                            name,
+                            location,
+                            reason);
+            return WebResponseUtils.bytesToWebResponse(signed, "signed.pdf");
+        }
+
+        // Fallback: the existing fixed-box (or invisible) signature.
+        CertSignController.CreateSignature createSignature =
+                new CertSignController.CreateSignature(resolved.keyStore(), resolved.password());
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         CertSignController.sign(
                 pdfDocumentFactory,
@@ -115,5 +145,11 @@ public class ServerCertificateStoreController {
                 showLogo);
 
         return WebResponseUtils.bytesToWebResponse(output.toByteArray(), "signed.pdf");
+    }
+
+    /** Decodes a base64 payload that may be a data URL (data:image/png;base64,...). */
+    private static byte[] decodeImage(String value) {
+        String base64 = value.contains(",") ? value.substring(value.indexOf(',') + 1) : value;
+        return Base64.getDecoder().decode(base64);
     }
 }
