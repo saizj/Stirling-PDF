@@ -154,24 +154,30 @@ export async function composeSignatureAppearance(
       lines.push({ text: options.date, size: 18, bold: false });
     }
 
+    const LEADING = 1.5;
+    const BLOCK_GAP = 12;
+    const textX = textRegion.x + 8;
+    const textW = textRegion.w - 8;
+
     // Vertically center the block.
     let totalHeight = 0;
     const rendered: { parts: string[]; size: number; bold: boolean }[] = [];
     for (const line of lines) {
       ctx.font = `${line.bold ? "bold " : ""}${line.size}px Helvetica, Arial, sans-serif`;
-      const parts = wrapText(ctx, line.text, textRegion.w);
+      const parts = wrapText(ctx, line.text, textW);
       rendered.push({ parts, size: line.size, bold: line.bold });
-      totalHeight += parts.length * (line.size * 1.3) + 4;
+      totalHeight += parts.length * (line.size * LEADING) + BLOCK_GAP;
     }
+    totalHeight -= BLOCK_GAP; // no trailing gap after the last line
 
     let y = textRegion.y + Math.max(0, (textRegion.h - totalHeight) / 2);
     for (const line of rendered) {
       ctx.font = `${line.bold ? "bold " : ""}${line.size}px Helvetica, Arial, sans-serif`;
       for (const part of line.parts) {
-        ctx.fillText(part, textRegion.x, y);
-        y += line.size * 1.3;
+        ctx.fillText(part, textX, y);
+        y += line.size * LEADING;
       }
-      y += 4;
+      y += BLOCK_GAP;
     }
   }
 
