@@ -20,8 +20,8 @@ export interface SignatureAppearanceOptions {
   includeDate: boolean;
 }
 
-const CANVAS_WIDTH = 640;
-const CANVAS_HEIGHT = 200;
+const CANVAS_WIDTH = 820;
+const CANVAS_HEIGHT = 250;
 
 const loadImage = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -45,27 +45,6 @@ const drawContain = (
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 };
 
-const wrapText = (
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string[] => {
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (ctx.measureText(candidate).width > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-};
-
 export async function composeSignatureAppearance(
   options: SignatureAppearanceOptions,
 ): Promise<string> {
@@ -81,25 +60,27 @@ export async function composeSignatureAppearance(
     (options.includeDate && !!options.date);
   const hasImage = options.includeImage && !!options.signatureImage;
 
-  const padding = 16;
-  const gap = 16;
+  const padding = 10;
+  const gap = 14;
 
   // Determine columns.
   let imageRegion: { x: number; y: number; w: number; h: number } | null = null;
   let textRegion: { x: number; y: number; w: number; h: number } | null = null;
 
   if (hasImage && hasText) {
-    const half = (CANVAS_WIDTH - padding * 2 - gap) / 2;
+    const content = CANVAS_WIDTH - padding * 2 - gap;
+    const imgW = content * 0.42;
+    const txtW = content * 0.58;
     imageRegion = {
       x: padding,
       y: padding,
-      w: half,
+      w: imgW,
       h: CANVAS_HEIGHT - padding * 2,
     };
     textRegion = {
-      x: padding + half + gap,
+      x: padding + imgW + gap,
       y: padding,
-      w: half,
+      w: txtW,
       h: CANVAS_HEIGHT - padding * 2,
     };
   } else if (hasImage) {
@@ -142,42 +123,45 @@ export async function composeSignatureAppearance(
 
   if (textRegion) {
     ctx.fillStyle = "#111111";
-    ctx.textBaseline = "top";
-    const lines: { text: string; size: number; bold: boolean }[] = [];
+    const textX = textRegion.x + 6;
+    const textW = textRegion.w - 12;
+
+    const items: { text: string; bold: boolean; rel: number }[] = [];
     if (options.includeName && options.name) {
-      lines.push({ text: options.name, size: 22, bold: true });
+      items.push({ text: options.name, bold: true, rel: 1 });
     }
     if (options.includeId && options.signerId) {
-      lines.push({ text: options.signerId, size: 16, bold: false });
+      items.push({ text: options.signerId, bold: false, rel: 0.74 });
     }
     if (options.includeDate && options.date) {
-      lines.push({ text: options.date, size: 18, bold: false });
+      items.push({ text: options.date, bold: false, rel: 0.74 });
     }
 
-    const LEADING = 1.5;
-    const BLOCK_GAP = 12;
-    const textX = textRegion.x + 8;
-    const textW = textRegion.w - 8;
+    if (items.length > 0) {
+      // Largest font that still fits the width — so the text fills the card.
+      const fitWidth = (text: string, bold: boolean, maxSize: number): number => {
+        const f = (s: number) =>
+          `${bold ? "bold " : ""}${s}px Helvetica, Arial, sans-serif`;
+        let size = maxSize;
+        ctx.font = f(size);
+        while (size > 10 && ctx.measureText(text).width > textW) {
+          size -= 1;
+          ctx.font = f(size);
+        }
+        return size;
+      };
 
-    // Vertically center the block.
-    let totalHeight = 0;
-    const rendered: { parts: string[]; size: number; bold: boolean }[] = [];
-    for (const line of lines) {
-      ctx.font = `${line.bold ? "bold " : ""}${line.size}px Helvetica, Arial, sans-serif`;
-      const parts = wrapText(ctx, line.text, textW);
-      rendered.push({ parts, size: line.size, bold: line.bold });
-      totalHeight += parts.length * (line.size * LEADING) + BLOCK_GAP;
-    }
-    totalHeight -= BLOCK_GAP; // no trailing gap after the last line
+      const nameSize = fitWidth(items[0].text, items[0].bold, 48);
 
-    let y = textRegion.y + Math.max(0, (textRegion.h - totalHeight) / 2);
-    for (const line of rendered) {
-      ctx.font = `${line.bold ? "bold " : ""}${line.size}px Helvetica, Arial, sans-serif`;
-      for (const part of line.parts) {
-        ctx.fillText(part, textX, y);
-        y += line.size * LEADING;
-      }
-      y += BLOCK_GAP;
+      // Spread the lines across the full height so they fill the card.
+      const slotH = textRegion.h / items.length;
+      ctx.textBaseline = "middle";
+      items.forEach((it, i) => {
+        const target = Math.round(nameSize * it.rel);
+        const size = Math.min(target, fitWidth(it.text, it.bold, target));
+        ctx.font = `${it.bold ? "bold " : ""}${size}px Helvetica, Arial, sans-serif`;
+        ctx.fillText(it.text, textX, textRegion.y + slotH * i + slotH / 2);
+      });
     }
   }
 
