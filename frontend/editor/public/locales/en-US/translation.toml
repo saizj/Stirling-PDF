@@ -11107,6 +11107,20 @@ usingCertificate = "Signing with"
 [serverCertSign.steps]
 certificate = "Certificate"
 place = "Draw & place signature"
+appearance = "Signature appearance"
+
+[serverCertSign.appearance]
+image = "Image"
+name = "Name"
+date = "Date"
+preview = "Preview"
+
+[serverCertSign.model]
+saved = "Saved appearance"
+pick = "Choose a model"
+saveAs = "Save appearance as"
+namePlaceholder = "Model name"
+save = "Save"
 
 [serverCertSign.sign]
 submit = "Sign PDF"
