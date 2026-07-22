@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import HotkeysSection from "@app/components/shared/config/configSections/HotkeysSection";
 import GeneralSection from "@app/components/shared/config/configSections/GeneralSection";
+import CertificatesSection from "@app/components/shared/config/configSections/CertificatesSection";
 import HelpSection from "@app/components/shared/config/configSections/HelpSection";
 import LegalSection from "@app/components/shared/config/configSections/LegalSection";
 import {
@@ -51,6 +52,12 @@ export const useConfigNavSections = (
           label: t("settings.hotkeys.title", "Keyboard Shortcuts"),
           icon: "keyboard-rounded",
           component: <HotkeysSection />,
+        },
+        {
+          key: "certificates",
+          label: t("settings.certificates.navLabel", "Certificates"),
+          icon: "workspace-premium-rounded",
+          component: <CertificatesSection />,
         },
       ],
     },

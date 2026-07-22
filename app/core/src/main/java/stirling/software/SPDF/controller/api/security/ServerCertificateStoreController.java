@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,7 +45,8 @@ public class ServerCertificateStoreController {
     @GetMapping
     @Operation(
             summary = "List stored server certificates",
-            description = "Returns metadata (no secrets) for every certificate stored on the server")
+            description =
+                    "Returns metadata (no secrets) for every certificate stored on the server")
     public List<CertEntry> list() throws Exception {
         return store.listCertificates();
     }
@@ -68,6 +70,15 @@ public class ServerCertificateStoreController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/default")
+    @Operation(
+            summary = "Set the active server certificate",
+            description = "Marks the certificate used by the \"Server\" signing mode")
+    public ResponseEntity<Void> setDefault(@PathVariable("id") String id) throws Exception {
+        store.setDefault(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping(value = "/sign", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(
             summary = "Sign a PDF with a stored server certificate",
@@ -85,8 +96,7 @@ public class ServerCertificateStoreController {
 
         ResolvedKeyStore resolved = store.resolve(certId);
         CertSignController.CreateSignature createSignature =
-                new CertSignController.CreateSignature(
-                        resolved.keyStore(), resolved.password());
+                new CertSignController.CreateSignature(resolved.keyStore(), resolved.password());
 
         // sign() expects a 0-indexed page; the API takes 1-indexed (default page 1).
         int pageIndex = (pageNumber != null && pageNumber > 0) ? pageNumber - 1 : 0;

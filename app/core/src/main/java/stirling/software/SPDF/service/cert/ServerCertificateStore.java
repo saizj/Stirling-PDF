@@ -55,6 +55,7 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
 
     private static final String DIR_NAME = "server-certificates";
     private static final String KEY_FILE = ".store-key";
+    private static final String DEFAULT_FILE = ".default";
     private static final String GCM_TRANSFORM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_BITS = 128;
@@ -69,7 +70,8 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
             String subject,
             String issuer,
             Date validFrom,
-            Date validTo) {}
+            Date validTo,
+            boolean isDefault) {}
 
     /** A loaded keystore together with the password that unlocks its private key. */
     public record ResolvedKeyStore(KeyStore keyStore, char[] password) {}
@@ -88,17 +90,33 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
         if (!Files.isDirectory(dir)) {
             return entries;
         }
+        String defaultId = readDefaultId(dir);
         try (var stream = Files.newDirectoryStream(dir, "*.properties")) {
             for (Path props : stream) {
                 String id = stripExtension(props.getFileName().toString());
                 try {
-                    entries.add(readEntry(id, loadProperties(props)));
+                    entries.add(readEntry(id, loadProperties(props), id.equals(defaultId)));
                 } catch (Exception ex) {
                     log.warn("Skipping unreadable server certificate metadata: {}", id, ex);
                 }
             }
         }
         entries.sort(Comparator.comparing(e -> e.name() == null ? "" : e.name().toLowerCase()));
+        // If no explicit default is set, the first (alphabetical) entry is the implicit default.
+        if ((defaultId == null || entries.stream().noneMatch(CertEntry::isDefault))
+                && !entries.isEmpty()) {
+            CertEntry first = entries.get(0);
+            entries.set(
+                    0,
+                    new CertEntry(
+                            first.id(),
+                            first.name(),
+                            first.subject(),
+                            first.issuer(),
+                            first.validFrom(),
+                            first.validTo(),
+                            true));
+        }
         return entries;
     }
 
@@ -129,7 +147,10 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
         storeProperties(dir.resolve(id + ".properties"), props);
 
         log.info("Stored server certificate '{}' (id={})", props.getProperty("name"), id);
-        return readEntry(id, props);
+        return listCertificates().stream()
+                .filter(e -> e.id().equals(id))
+                .findFirst()
+                .orElse(readEntry(id, props, false));
     }
 
     public synchronized void deleteCertificate(String id) throws IOException {
@@ -137,6 +158,9 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
         Path dir = baseDir();
         Files.deleteIfExists(dir.resolve(safeId + ".p12"));
         Files.deleteIfExists(dir.resolve(safeId + ".properties"));
+        if (safeId.equals(readDefaultId(dir))) {
+            Files.deleteIfExists(dir.resolve(DEFAULT_FILE));
+        }
         log.info("Deleted server certificate id={}", safeId);
     }
 
@@ -158,7 +182,8 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
 
     @Override
     public boolean isEnabled() {
-        return true;
+        // The "Server" signing mode should only surface once at least one certificate exists.
+        return hasServerCertificate();
     }
 
     @Override
@@ -226,7 +251,11 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
         if (id.isEmpty()) {
             return new ServerCertificateInfo(false, null, null, null, null);
         }
-        CertEntry entry = readEntry(id.get(), loadProperties(baseDir().resolve(id.get() + ".properties")));
+        CertEntry entry =
+                readEntry(
+                        id.get(),
+                        loadProperties(baseDir().resolve(id.get() + ".properties")),
+                        true);
         return new ServerCertificateInfo(
                 true, entry.subject(), entry.issuer(), entry.validFrom(), entry.validTo());
     }
@@ -234,8 +263,10 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
     // ---- Helpers ----
 
     private Optional<String> defaultId() throws IOException {
-        List<CertEntry> entries = listCertificates();
-        return entries.isEmpty() ? Optional.empty() : Optional.of(entries.get(0).id());
+        return listCertificates().stream()
+                .filter(CertEntry::isDefault)
+                .map(CertEntry::id)
+                .findFirst();
     }
 
     private String requireDefaultId() throws IOException {
@@ -243,7 +274,7 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
                 .orElseThrow(() -> new IllegalStateException("No server certificate configured"));
     }
 
-    private CertEntry readEntry(String id, Properties props) {
+    private CertEntry readEntry(String id, Properties props, boolean isDefault) {
         Date from = parseDate(props.getProperty("validFrom"));
         Date to = parseDate(props.getProperty("validTo"));
         return new CertEntry(
@@ -252,7 +283,31 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
                 props.getProperty("subject"),
                 props.getProperty("issuer"),
                 from,
-                to);
+                to,
+                isDefault);
+    }
+
+    private String readDefaultId(Path dir) {
+        try {
+            Path marker = dir.resolve(DEFAULT_FILE);
+            if (Files.exists(marker)) {
+                String id = Files.readString(marker, StandardCharsets.UTF_8).trim();
+                return id.isEmpty() ? null : id;
+            }
+        } catch (IOException ex) {
+            log.warn("Failed to read default certificate marker", ex);
+        }
+        return null;
+    }
+
+    public synchronized void setDefault(String id) throws IOException {
+        String safeId = requireSafeId(id);
+        Path dir = baseDir();
+        if (!Files.exists(dir.resolve(safeId + ".properties"))) {
+            throw new IllegalArgumentException("No stored certificate with id " + safeId);
+        }
+        Files.writeString(dir.resolve(DEFAULT_FILE), safeId, StandardCharsets.UTF_8);
+        log.info("Set active server certificate id={}", safeId);
     }
 
     private static Date parseDate(String millis) {
