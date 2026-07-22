@@ -88,6 +88,9 @@ const ServerCertSign = (props: BaseToolProps) => {
   const [includeDate, setIncludeDate] = useState(true);
   const [composedImage, setComposedImage] = useState<string | null>(null);
   const [modelName, setModelName] = useState("");
+  // Editable appearance text — pre-filled from the certificate, overridable.
+  const [displayName, setDisplayName] = useState("");
+  const [displayId, setDisplayId] = useState("");
 
   const activeCert =
     certificates.find((c) => c.isDefault) ?? certificates[0] ?? null;
@@ -104,6 +107,14 @@ const ServerCertSign = (props: BaseToolProps) => {
     if (activeCert) base.params.updateParameter("certId", activeCert.id);
   }, [activeCert?.id]);
 
+  // Pre-fill the editable name/id from the active certificate.
+  useEffect(() => {
+    if (activeCert) {
+      setDisplayName(activeCert.name ?? "");
+      setDisplayId(activeCert.signerId ?? "");
+    }
+  }, [activeCert?.id, activeCert?.signerId]);
+
   useEffect(() => {
     if (base.selectedFiles.length > 0 && !hasOpenedViewer.current) {
       setWorkbench("viewer");
@@ -114,8 +125,8 @@ const ServerCertSign = (props: BaseToolProps) => {
   const compose = useCallback((): Promise<string> => {
     return composeSignatureAppearance({
       signatureImage: signatureConfig?.signatureData,
-      name: activeCert?.name,
-      signerId: activeCert?.signerId,
+      name: displayName,
+      signerId: displayId,
       date: formatNow(),
       includeImage,
       includeName,
@@ -124,8 +135,8 @@ const ServerCertSign = (props: BaseToolProps) => {
     });
   }, [
     signatureConfig?.signatureData,
-    activeCert?.name,
-    activeCert?.signerId,
+    displayName,
+    displayId,
     includeImage,
     includeName,
     includeId,
@@ -180,7 +191,7 @@ const ServerCertSign = (props: BaseToolProps) => {
     const params = {
       ...base.params.parameters,
       certId: activeCert.id,
-      name: signatureConfig?.signerName || activeCert.name,
+      name: displayName || activeCert.name,
       placement: {
         signatureData: appearance || placed.signatureData,
         page: placed.pageIndex,
@@ -197,7 +208,7 @@ const ServerCertSign = (props: BaseToolProps) => {
     base.params.parameters,
     base.selectedFiles,
     compose,
-    signatureConfig?.signerName,
+    displayName,
   ]);
 
   const handleDeleteSelected = useCallback(() => {
@@ -324,6 +335,21 @@ const ServerCertSign = (props: BaseToolProps) => {
               onChange={(e) => setIncludeDate(e.currentTarget.checked)}
             />
           </Group>
+
+          {includeName && (
+            <TextInput
+              label={t("serverCertSign.appearance.name", "Name")}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.currentTarget.value)}
+            />
+          )}
+          {includeId && (
+            <TextInput
+              label={t("serverCertSign.appearance.id", "DNI/CIF")}
+              value={displayId}
+              onChange={(e) => setDisplayId(e.currentTarget.value)}
+            />
+          )}
 
           {composedImage && (
             <Paper withBorder p="xs" radius="md">
