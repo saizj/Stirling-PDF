@@ -1,5 +1,8 @@
 package stirling.software.SPDF.service.cert;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -8,6 +11,8 @@ import java.security.KeyStore;
 import java.util.Calendar;
 import java.util.List;
 
+import javax.imageio.ImageIO;
+
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -15,6 +20,7 @@ import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.common.PDStream;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
@@ -148,9 +154,8 @@ public class VisibleSignatureService {
             widget.setAppearance(appearance);
 
             try (PDPageContentStream cs = new PDPageContentStream(doc, appearanceStream)) {
-                if (imageBytes != null && imageBytes.length > 0) {
-                    PDImageXObject image =
-                            PDImageXObject.createFromByteArray(doc, imageBytes, "signature");
+                PDImageXObject image = buildOpaqueImage(doc, imageBytes);
+                if (image != null) {
                     cs.drawImage(image, 0, 0, rect.getWidth(), rect.getHeight());
                 }
             }
@@ -159,5 +164,32 @@ public class VisibleSignatureService {
             doc.save(baos);
             return new ByteArrayInputStream(baos.toByteArray());
         }
+    }
+
+    /**
+     * Decode the signature PNG and flatten it onto a white background, producing an OPAQUE
+     * DeviceRGB image. Transparent PNGs otherwise yield an SMask + ICCBased colour space and a
+     * heavily indirected resource tree that Adobe Acrobat rejects during signature validation with
+     * "expected a dictionary object" (other viewers accept it). A flat opaque image keeps the
+     * appearance's object graph simple.
+     */
+    private static PDImageXObject buildOpaqueImage(PDDocument doc, byte[] imageBytes)
+            throws IOException {
+        if (imageBytes == null || imageBytes.length == 0) {
+            return null;
+        }
+        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+        if (decoded == null) {
+            return null;
+        }
+        BufferedImage opaque =
+                new BufferedImage(
+                        decoded.getWidth(), decoded.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = opaque.createGraphics();
+        g.setColor(Color.WHITE);
+        g.fillRect(0, 0, opaque.getWidth(), opaque.getHeight());
+        g.drawImage(decoded, 0, 0, null);
+        g.dispose();
+        return LosslessFactory.createFromImage(doc, opaque);
     }
 }
