@@ -27,6 +27,10 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.asn1.x500.RDN;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x500.style.IETFUtils;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +73,7 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
             String name,
             String subject,
             String issuer,
+            String signerId,
             Date validFrom,
             Date validTo,
             boolean isDefault) {}
@@ -113,6 +118,7 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
                             first.name(),
                             first.subject(),
                             first.issuer(),
+                            first.signerId(),
                             first.validFrom(),
                             first.validTo(),
                             true));
@@ -282,9 +288,34 @@ public class ServerCertificateStore implements ServerCertificateServiceInterface
                 props.getProperty("name"),
                 props.getProperty("subject"),
                 props.getProperty("issuer"),
+                extractSignerId(props.getProperty("subject")),
                 from,
                 to,
                 isDefault);
+    }
+
+    /**
+     * Extract the signer's national identifier (DNI/CIF/NIE) from the subject DN. Spanish qualified
+     * certificates carry it in the serialNumber (2.5.4.5), e.g. {@code IDCES-50478386X}; the letter
+     * prefix is stripped. Works from the stored subject string (BouncyCastle decodes the DER
+     * value).
+     */
+    private static String extractSignerId(String subjectDn) {
+        if (subjectDn == null || subjectDn.isBlank()) {
+            return null;
+        }
+        try {
+            X500Name x500 = new X500Name(subjectDn);
+            RDN[] rdns = x500.getRDNs(BCStyle.SERIALNUMBER);
+            if (rdns.length == 0) {
+                return null;
+            }
+            String value = IETFUtils.valueToString(rdns[0].getFirst().getValue());
+            return value == null ? null : value.replaceFirst("^[A-Za-z]{2,8}-", "");
+        } catch (RuntimeException ex) {
+            log.debug("Could not extract signer id from subject", ex);
+            return null;
+        }
     }
 
     private String readDefaultId(Path dir) {

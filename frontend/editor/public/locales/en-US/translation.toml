@@ -11112,6 +11112,7 @@ appearance = "Signature appearance"
 [serverCertSign.appearance]
 image = "Image"
 name = "Name"
+id = "DNI/CIF"
 date = "Date"
 preview = "Preview"
 

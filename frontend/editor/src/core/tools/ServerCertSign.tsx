@@ -39,6 +39,7 @@ import { useServerCertSignOperation } from "@app/hooks/tools/serverCertSign/useS
 interface ServerCertificate {
   id: string;
   name: string;
+  signerId?: string;
   isDefault?: boolean;
 }
 
@@ -83,6 +84,7 @@ const ServerCertSign = (props: BaseToolProps) => {
   // Adobe-style appearance toggles + composed preview.
   const [includeImage, setIncludeImage] = useState(true);
   const [includeName, setIncludeName] = useState(true);
+  const [includeId, setIncludeId] = useState(true);
   const [includeDate, setIncludeDate] = useState(true);
   const [composedImage, setComposedImage] = useState<string | null>(null);
   const [modelName, setModelName] = useState("");
@@ -113,16 +115,20 @@ const ServerCertSign = (props: BaseToolProps) => {
     return composeSignatureAppearance({
       signatureImage: signatureConfig?.signatureData,
       name: activeCert?.name,
+      signerId: activeCert?.signerId,
       date: formatNow(),
       includeImage,
       includeName,
+      includeId,
       includeDate,
     });
   }, [
     signatureConfig?.signatureData,
     activeCert?.name,
+    activeCert?.signerId,
     includeImage,
     includeName,
+    includeId,
     includeDate,
   ]);
 
@@ -206,6 +212,7 @@ const ServerCertSign = (props: BaseToolProps) => {
       signatureType: signatureConfig?.signatureType,
       includeImage,
       includeName,
+      includeId,
       includeDate,
     });
     setModelName("");
@@ -215,6 +222,7 @@ const ServerCertSign = (props: BaseToolProps) => {
     signatureConfig,
     includeImage,
     includeName,
+    includeId,
     includeDate,
   ]);
 
@@ -229,6 +237,7 @@ const ServerCertSign = (props: BaseToolProps) => {
       });
       setIncludeImage(model.includeImage);
       setIncludeName(model.includeName);
+      setIncludeId(model.includeId);
       setIncludeDate(model.includeDate);
     },
     [models],
@@ -303,6 +312,11 @@ const ServerCertSign = (props: BaseToolProps) => {
               label={t("serverCertSign.appearance.name", "Name")}
               checked={includeName}
               onChange={(e) => setIncludeName(e.currentTarget.checked)}
+            />
+            <Switch
+              label={t("serverCertSign.appearance.id", "DNI/CIF")}
+              checked={includeId}
+              onChange={(e) => setIncludeId(e.currentTarget.checked)}
             />
             <Switch
               label={t("serverCertSign.appearance.date", "Date")}

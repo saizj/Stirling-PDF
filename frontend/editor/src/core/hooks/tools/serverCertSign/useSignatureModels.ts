@@ -8,6 +8,7 @@ export interface SignatureModel {
   signatureType?: "canvas" | "image" | "text";
   includeImage: boolean;
   includeName: boolean;
+  includeId: boolean;
   includeDate: boolean;
 }
 

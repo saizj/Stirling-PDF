@@ -10,10 +10,13 @@ export interface SignatureAppearanceOptions {
   signatureImage?: string | null;
   /** Signer name (from the certificate). */
   name?: string;
+  /** Signer national id (DNI/CIF/NIE) from the certificate. */
+  signerId?: string;
   /** Pre-formatted date string. */
   date?: string;
   includeImage: boolean;
   includeName: boolean;
+  includeId: boolean;
   includeDate: boolean;
 }
 
@@ -74,6 +77,7 @@ export async function composeSignatureAppearance(
 
   const hasText =
     (options.includeName && !!options.name) ||
+    (options.includeId && !!options.signerId) ||
     (options.includeDate && !!options.date);
   const hasImage = options.includeImage && !!options.signatureImage;
 
@@ -142,6 +146,9 @@ export async function composeSignatureAppearance(
     const lines: { text: string; size: number; bold: boolean }[] = [];
     if (options.includeName && options.name) {
       lines.push({ text: options.name, size: 22, bold: true });
+    }
+    if (options.includeId && options.signerId) {
+      lines.push({ text: options.signerId, size: 16, bold: false });
     }
     if (options.includeDate && options.date) {
       lines.push({ text: options.date, size: 18, bold: false });
