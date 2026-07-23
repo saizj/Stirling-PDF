@@ -11136,6 +11136,7 @@ delete = "Delete selected signature"
 [serverCertSign.model]
 saved = "Saved appearance"
 pick = "Choose a model"
+new = "New appearance"
 saveAs = "Save appearance as"
 namePlaceholder = "Model name"
 save = "Save"

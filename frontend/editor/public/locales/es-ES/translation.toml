@@ -10979,6 +10979,7 @@ delete = "Eliminar firma seleccionada"
 [serverCertSign.model]
 saved = "Aspecto guardado"
 pick = "Elige un modelo"
+new = "Nuevo aspecto"
 saveAs = "Guardar aspecto como"
 namePlaceholder = "Nombre del modelo"
 save = "Guardar"

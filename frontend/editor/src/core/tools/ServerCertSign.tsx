@@ -55,6 +55,9 @@ const STORED_TYPE: Record<SignatureType, "canvas" | "image" | "text"> = {
   type: "text",
 };
 
+/** Sentinel value for the "New appearance" entry in the saved-appearance dropdown. */
+const NEW_MODEL = "__new__";
+
 const formatNow = (): string => {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
@@ -96,6 +99,7 @@ const ServerCertSign = (props: BaseToolProps) => {
   const [composedImage, setComposedImage] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [modelName, setModelName] = useState("");
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
   // Create-signature modal state (reuses the shared wet-signature creation flow).
   const [createOpen, setCreateOpen] = useState(false);
@@ -288,6 +292,28 @@ const ServerCertSign = (props: BaseToolProps) => {
     [models],
   );
 
+  const handleModelChange = useCallback(
+    (value: string | null) => {
+      setSelectedModelId(value);
+      if (value === NEW_MODEL) {
+        // Start a fresh appearance — open the editor so the user can build it.
+        setPropertiesOpen(true);
+      } else if (value) {
+        applyModel(value);
+        setPropertiesOpen(false);
+      }
+    },
+    [applyModel],
+  );
+
+  // Select the first saved appearance by default.
+  useEffect(() => {
+    if (models.length > 0 && selectedModelId === null) {
+      setSelectedModelId(models[0].id);
+      applyModel(models[0].id);
+    }
+  }, [models, selectedModelId, applyModel]);
+
   const certOptions = useMemo(
     () => certificates.map((c) => ({ value: c.id, label: c.name })),
     [certificates],
@@ -332,50 +358,21 @@ const ServerCertSign = (props: BaseToolProps) => {
       onCollapsedClick: undefined,
       content: (
         <Stack gap="sm">
-          {/* 1) The signature (create / change) */}
-          <Paper withBorder p="xs" radius="md">
-            <Group justify="space-between" wrap="nowrap">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Text size="xs" c="dimmed">
-                  {t("serverCertSign.signature.title", "Signature")}
-                </Text>
-                {signatureData ? (
-                  <Image
-                    src={signatureData}
-                    alt="signature"
-                    fit="contain"
-                    h={40}
-                    style={{ backgroundColor: "#fff", borderRadius: 6 }}
-                  />
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    {t("serverCertSign.signature.none", "No signature yet")}
-                  </Text>
-                )}
-              </div>
-              <Button
-                variant="secondary"
-                leftSection={<EditIcon sx={{ fontSize: "1rem" }} />}
-                onClick={openCreateModal}
-              >
-                {signatureData
-                  ? t("serverCertSign.signature.change", "Change")
-                  : t("serverCertSign.signature.create", "Create")}
-              </Button>
-            </Group>
-          </Paper>
-
-          {/* Saved appearance models */}
-          {modelOptions.length > 0 && (
-            <Select
-              label={t("serverCertSign.model.saved", "Saved appearance")}
-              placeholder={t("serverCertSign.model.pick", "Choose a model")}
-              data={modelOptions}
-              onChange={applyModel}
-              clearable
-              comboboxProps={{ withinPortal: true }}
-            />
-          )}
+          {/* Saved appearance dropdown (with a "New appearance" entry) */}
+          <Select
+            label={t("serverCertSign.model.saved", "Saved appearance")}
+            data={[
+              ...modelOptions,
+              {
+                value: NEW_MODEL,
+                label: t("serverCertSign.model.new", "New appearance"),
+              },
+            ]}
+            value={selectedModelId ?? NEW_MODEL}
+            onChange={handleModelChange}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+          />
 
           {/* Live preview */}
           {composedImage && (
@@ -414,6 +411,39 @@ const ServerCertSign = (props: BaseToolProps) => {
           </MantineButton>
           <Collapse in={propertiesOpen}>
             <Stack gap="sm" pt="xs">
+              {/* Signature (create / change) */}
+              <Paper withBorder p="xs" radius="md">
+                <Group justify="space-between" wrap="nowrap">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="xs" c="dimmed">
+                      {t("serverCertSign.signature.title", "Signature")}
+                    </Text>
+                    {signatureData ? (
+                      <Image
+                        src={signatureData}
+                        alt="signature"
+                        fit="contain"
+                        h={40}
+                        style={{ backgroundColor: "#fff", borderRadius: 6 }}
+                      />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("serverCertSign.signature.none", "No signature yet")}
+                      </Text>
+                    )}
+                  </div>
+                  <Button
+                    variant="secondary"
+                    leftSection={<EditIcon sx={{ fontSize: "1rem" }} />}
+                    onClick={openCreateModal}
+                  >
+                    {signatureData
+                      ? t("serverCertSign.signature.change", "Change")
+                      : t("serverCertSign.signature.create", "Create")}
+                  </Button>
+                </Group>
+              </Paper>
+
               <Group gap="lg">
                 <Switch
                   label={t("serverCertSign.appearance.image", "Image")}
