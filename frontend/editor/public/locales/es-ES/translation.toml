@@ -10938,3 +10938,54 @@ confirm = "Extraer"
 message_one = "This ZIP contains {{count}} file. Extract anyway?"
 message_other = "This ZIP contains {{count}} files. Extract anyway?"
 title = "Archivo ZIP grande"
+
+[home.serverCertSign]
+title = "Firmar con recuadro"
+desc = "Dibuja y coloca una firma, y firma con un certificado del servidor"
+
+[serverCertSign]
+noCertificate = "No hay certificados guardados. Añade uno en Ajustes → Certificados."
+usingCertificate = "Firmando con"
+
+[serverCertSign.steps]
+certificate = "Certificado"
+place = "Dibujar y colocar firma"
+appearance = "Aspecto de la firma"
+
+[serverCertSign.certificate]
+select = "Certificado"
+
+[serverCertSign.signature]
+title = "Firma"
+none = "Aún sin firma"
+change = "Cambiar"
+create = "Crear firma"
+use = "Usar firma"
+
+[serverCertSign.appearance]
+image = "Imagen"
+name = "Nombre"
+id = "DNI/CIF"
+date = "Fecha"
+preview = "Vista previa"
+customize = "Personalizar aspecto"
+
+[serverCertSign.placement]
+title = "Colocar o mover"
+place = "Colocar"
+move = "Mover"
+delete = "Eliminar firma seleccionada"
+
+[serverCertSign.model]
+saved = "Aspecto guardado"
+pick = "Elige un modelo"
+saveAs = "Guardar aspecto como"
+namePlaceholder = "Nombre del modelo"
+save = "Guardar"
+
+[serverCertSign.sign]
+submit = "Firmar PDF"
+results = "PDF firmado"
+
+[serverCertSign.error]
+failed = "Ocurrió un error al firmar el documento."

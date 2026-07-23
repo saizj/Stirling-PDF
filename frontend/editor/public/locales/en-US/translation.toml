@@ -11115,6 +11115,23 @@ name = "Name"
 id = "DNI/CIF"
 date = "Date"
 preview = "Preview"
+customize = "Customize appearance"
+
+[serverCertSign.certificate]
+select = "Certificate"
+
+[serverCertSign.signature]
+title = "Signature"
+none = "No signature yet"
+change = "Change"
+create = "Create signature"
+use = "Use signature"
+
+[serverCertSign.placement]
+title = "Place or move"
+place = "Place"
+move = "Move"
+delete = "Delete selected signature"
 
 [serverCertSign.model]
 saved = "Saved appearance"
