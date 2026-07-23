@@ -48,11 +48,16 @@ const drawContain = (
 export async function composeSignatureAppearance(
   options: SignatureAppearanceOptions,
 ): Promise<string> {
+  // Render at 3x so the stamped image stays crisp when scaled to the PDF box.
+  const SCALE = 3;
   const canvas = document.createElement("canvas");
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = CANVAS_HEIGHT;
+  canvas.width = CANVAS_WIDTH * SCALE;
+  canvas.height = CANVAS_HEIGHT * SCALE;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
+  ctx.scale(SCALE, SCALE);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
   const hasText =
     (options.includeName && !!options.name) ||
