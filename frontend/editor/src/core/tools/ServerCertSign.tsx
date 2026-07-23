@@ -175,7 +175,14 @@ const ServerCertSign = (props: BaseToolProps) => {
     };
   }, [compose]);
 
+  const prevPreviewCount = useRef(0);
   const handlePreviewsChange = useCallback((previews: SignaturePreview[]) => {
+    // After the first signature is placed, switch to "move" so the user edits
+    // that one instead of dropping another.
+    if (prevPreviewCount.current === 0 && previews.length > 0) {
+      setPlacementMode(false);
+    }
+    prevPreviewCount.current = previews.length;
     setPreviewCount(previews.length);
   }, []);
 
