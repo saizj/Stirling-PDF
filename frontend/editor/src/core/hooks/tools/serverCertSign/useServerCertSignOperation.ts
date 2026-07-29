@@ -11,6 +11,12 @@ import {
   defaultParameters,
 } from "@app/hooks/tools/serverCertSign/useServerCertSignParameters";
 
+/** Sanitises a user-entered file name and makes sure it ends in ".pdf". */
+function toPdfFileName(name: string): string {
+  const cleaned = name.replace(/[\\/:*?"<>|]/g, "").trim();
+  return /\.pdf$/i.test(cleaned) ? cleaned : `${cleaned}.pdf`;
+}
+
 async function processServerCertSign(
   params: ServerCertSignParameters,
   files: File[],
@@ -46,7 +52,15 @@ async function processServerCertSign(
     response.headers,
     file.name,
   );
-  return { files: [signed], consumedAllInputs: true };
+  // The backend always names the download "signed.pdf" — honour the name the
+  // user chose in the panel instead.
+  const desiredName = params.outputFileName?.trim();
+  if (!desiredName) return { files: [signed], consumedAllInputs: true };
+
+  const renamed = new File([signed], toPdfFileName(desiredName), {
+    type: signed.type,
+  });
+  return { files: [renamed], consumedAllInputs: true };
 }
 
 export const serverCertSignOperationConfig = defineCustomTool({

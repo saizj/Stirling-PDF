@@ -58,6 +58,10 @@ const STORED_TYPE: Record<SignatureType, "canvas" | "image" | "text"> = {
 /** Sentinel value for the "New appearance" entry in the saved-appearance dropdown. */
 const NEW_MODEL = "__new__";
 
+/** "Contrato.pdf" -> "Contrato" */
+const stripPdfExtension = (name: string): string =>
+  name.replace(/\.pdf$/i, "");
+
 const formatNow = (): string => {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
@@ -98,6 +102,7 @@ const ServerCertSign = (props: BaseToolProps) => {
   const [displayId, setDisplayId] = useState("");
   const [composedImage, setComposedImage] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [outputName, setOutputName] = useState("");
   const [modelName, setModelName] = useState("");
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
@@ -140,6 +145,13 @@ const ServerCertSign = (props: BaseToolProps) => {
       setDisplayId(selectedCert.signerId ?? "");
     }
   }, [selectedCert?.id, selectedCert?.signerId]);
+
+  // Default output name: "<original name> Signed".
+  const signedSuffix = t("serverCertSign.output.suffix", "Signed");
+  useEffect(() => {
+    if (!file) return;
+    setOutputName(`${stripPdfExtension(file.name)} ${signedSuffix}`);
+  }, [file?.name, signedSuffix]);
 
   useEffect(() => {
     if (base.selectedFiles.length > 0 && !hasOpenedViewer.current) {
@@ -235,6 +247,7 @@ const ServerCertSign = (props: BaseToolProps) => {
       ...base.params.parameters,
       certId: selectedCert.id,
       name: displayName || selectedCert.name,
+      outputFileName: outputName.trim(),
       placement: {
         signatureData: appearance || placed.signatureData,
         page: placed.pageIndex,
@@ -252,6 +265,7 @@ const ServerCertSign = (props: BaseToolProps) => {
     base.selectedFiles,
     compose,
     displayName,
+    outputName,
   ]);
 
   const handleDeleteSelected = useCallback(() => {
@@ -543,6 +557,27 @@ const ServerCertSign = (props: BaseToolProps) => {
             {t("serverCertSign.placement.delete", "Delete selected signature")}
           </Button>
         </Stack>
+      ),
+    });
+  }
+
+  if (base.selectedFiles.length > 0 && !noCertificatesAtAll) {
+    steps.push({
+      title: t("serverCertSign.output.title", "Output file"),
+      isCollapsed: false,
+      onCollapsedClick: undefined,
+      content: (
+        <TextInput
+          label={t("serverCertSign.output.name", "File name")}
+          value={outputName}
+          onChange={(e) => setOutputName(e.currentTarget.value)}
+          rightSection={
+            <Text size="xs" c="dimmed" pr={6}>
+              .pdf
+            </Text>
+          }
+          rightSectionWidth={40}
+        />
       ),
     });
   }

@@ -20,6 +20,8 @@ export interface ServerCertSignParameters extends BaseParameters {
   reason: string;
   location: string;
   name: string;
+  /** File name for the signed PDF (without extension; ".pdf" is appended). */
+  outputFileName: string;
   /** The placed signature (set from the viewer overlay when the user drops the box). */
   placement?: PlacedSignature;
 }
@@ -29,6 +31,7 @@ export const defaultParameters: ServerCertSignParameters = {
   reason: "",
   location: "",
   name: "",
+  outputFileName: "",
 };
 
 export type ServerCertSignParametersHook =

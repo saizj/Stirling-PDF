@@ -11141,6 +11141,11 @@ saveAs = "Save appearance as"
 namePlaceholder = "Model name"
 save = "Save"
 
+[serverCertSign.output]
+title = "Output file"
+name = "File name"
+suffix = "Signed"
+
 [serverCertSign.sign]
 submit = "Sign PDF"
 results = "Signed PDF"

@@ -10984,6 +10984,11 @@ saveAs = "Guardar aspecto como"
 namePlaceholder = "Nombre del modelo"
 save = "Guardar"
 
+[serverCertSign.output]
+title = "Archivo de salida"
+name = "Nombre del archivo"
+suffix = "Firmado"
+
 [serverCertSign.sign]
 submit = "Firmar PDF"
 results = "PDF firmado"
