@@ -272,9 +272,9 @@ const ServerCertSign = (props: BaseToolProps) => {
     overlayApiRef.current?.deleteSelected?.();
   }, []);
 
-  const handleSaveModel = useCallback(() => {
+  const handleSaveModel = useCallback(async () => {
     if (!modelName.trim()) return;
-    saveModel({
+    const saved = await saveModel({
       name: modelName.trim(),
       signatureData,
       includeImage,
@@ -283,6 +283,7 @@ const ServerCertSign = (props: BaseToolProps) => {
       includeDate,
     });
     setModelName("");
+    if (saved) setSelectedModelId(saved.id);
   }, [
     modelName,
     saveModel,

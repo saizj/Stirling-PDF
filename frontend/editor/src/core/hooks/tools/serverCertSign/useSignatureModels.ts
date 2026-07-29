@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import apiClient from "@app/services/apiClient";
 
-/** A saved Adobe-style signature appearance model (persisted per browser). */
+/** A saved Adobe-style signature appearance model (persisted on the server). */
 export interface SignatureModel {
   id: string;
   name: string;
@@ -12,11 +13,16 @@ export interface SignatureModel {
   includeDate: boolean;
 }
 
-const STORAGE_KEY = "blasai_signature_models";
+const ENDPOINT = "/api/v1/signature-appearances";
 
-const load = (): SignatureModel[] => {
+/** Appearances used to live per-browser; these keys drive the one-time upload to the server. */
+const LEGACY_STORAGE_KEY = "blasai_signature_models";
+const MIGRATED_KEY = "blasai_signature_models_migrated";
+
+const readLegacyModels = (): SignatureModel[] => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    if (localStorage.getItem(MIGRATED_KEY)) return [];
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as SignatureModel[]) : [];
@@ -25,42 +31,77 @@ const load = (): SignatureModel[] => {
   }
 };
 
-const persist = (models: SignatureModel[]) => {
+const markMigrated = () => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(models));
+    localStorage.setItem(MIGRATED_KEY, "1");
   } catch {
-    // Storage full / unavailable — non-fatal.
+    // Storage unavailable — worst case we retry the migration next time.
   }
 };
 
 export function useSignatureModels() {
   const [models, setModels] = useState<SignatureModel[]>([]);
 
+  const refresh = useCallback(async (): Promise<SignatureModel[]> => {
+    const { data } = await apiClient.get<SignatureModel[]>(ENDPOINT);
+    const list = data ?? [];
+    setModels(list);
+    return list;
+  }, []);
+
   useEffect(() => {
-    setModels(load());
-  }, []);
+    let cancelled = false;
+    const init = async () => {
+      try {
+        const serverModels = await refresh();
+        if (cancelled) return;
 
-  const saveModel = useCallback((model: Omit<SignatureModel, "id">): SignatureModel => {
-    const id =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `m_${models.length}_${model.name}`;
-    const saved: SignatureModel = { ...model, id };
-    setModels((prev) => {
-      const next = [...prev, saved];
-      persist(next);
-      return next;
-    });
-    return saved;
-  }, [models.length]);
+        // First run on this browser: push any locally saved appearances up so they
+        // become available everywhere, then never look at localStorage again.
+        const legacy = readLegacyModels();
+        if (legacy.length === 0) return;
+        const existingNames = new Set(serverModels.map((m) => m.name));
+        const pending = legacy.filter((m) => !existingNames.has(m.name));
+        for (const model of pending) {
+          const { id: _id, ...body } = model;
+          await apiClient.post(ENDPOINT, body);
+        }
+        markMigrated();
+        if (!cancelled && pending.length > 0) await refresh();
+      } catch {
+        // Offline or endpoint unavailable — the tool still works, just without saved models.
+      }
+    };
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
 
-  const deleteModel = useCallback((id: string) => {
-    setModels((prev) => {
-      const next = prev.filter((m) => m.id !== id);
-      persist(next);
-      return next;
-    });
-  }, []);
+  const saveModel = useCallback(
+    async (model: Omit<SignatureModel, "id">): Promise<SignatureModel | null> => {
+      try {
+        const { data } = await apiClient.post<SignatureModel>(ENDPOINT, model);
+        await refresh();
+        return data ?? null;
+      } catch {
+        return null;
+      }
+    },
+    [refresh],
+  );
 
-  return { models, saveModel, deleteModel };
+  const deleteModel = useCallback(
+    async (id: string): Promise<void> => {
+      try {
+        await apiClient.delete(`${ENDPOINT}/${id}`);
+        await refresh();
+      } catch {
+        // Nothing to do — the list stays as it is.
+      }
+    },
+    [refresh],
+  );
+
+  return { models, saveModel, deleteModel, refresh };
 }
