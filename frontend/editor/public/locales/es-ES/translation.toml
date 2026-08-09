@@ -4262,12 +4262,12 @@ title = "¡Está usando Stirling PDF como invitado!"
 [home.addAttachments]
 desc = "Agregar o eliminar archivos incrustados (adjuntos) a/desde un PDF"
 tags = "incrustar,adjuntar,incluir"
-title = "Agregar Adjuntos"
+title = "Añadir adjuntos"
 
 [home.addImage]
 desc = "Agregar una imagen en el PDF en una ubicación establecida (en desarrollo)"
 tags = "insertar,incrustar,colocar"
-title = "Agregar imagen al PDF"
+title = "Añadir imagen"
 
 [home.addPageNumbers]
 desc = "Añadir números de página en un documento en una ubicación concreta"
@@ -4282,7 +4282,7 @@ title = "Proteger con contraseña"
 [home.addStamp]
 desc = "Agregar sellos de texto o imagen en ubicaciones establecidas"
 tags = "sello,marca,timbre"
-title = "Agregar Sello a PDF"
+title = "Añadir sello"
 
 [home.addText]
 desc = "Añada texto personalizado en cualquier parte del PDF"
@@ -4292,7 +4292,7 @@ title = "Añadir texto"
 [home.adjustContrast]
 desc = "Ajustar Contraste, Saturación y Brillo de un PDF"
 tags = "contraste,brillo,saturación"
-title = "Ajustar Color/Contraste"
+title = "Ajustar color y contraste"
 
 [home.annotate]
 desc = "Resalta, dibuja y añade notas y formas en el visor"
@@ -4307,20 +4307,20 @@ title = "Automatizar"
 [home.autoRename]
 desc = "Renombra automáticamente un archivo PDF basándose en su encabezado detectado"
 tags = "auto-detectar,basado-en-encabezado,organizar,reetiquetar"
-title = "Renombrar Automáticamente Archivo PDF"
+title = "Renombrar automáticamente"
 
 [home.autoSizeSplitPDF]
 tags = "auto,dividir,tamaño"
-title = "Auto dividir por tamaño/conteo"
+title = "Dividir por tamaño o número de páginas"
 
 [home.autoSplitPDF]
 tags = "auto,dividir,QR"
-title = "Auto Dividir Páginas"
+title = "Dividir páginas automáticamente"
 
 [home.bookletImposition]
 desc = "Crear folletos con ordenamiento de páginas adecuado para impresión y encuadernación"
 tags = "folleto,imprimir,encuadernación"
-title = "Imposición de Folleto"
+title = "Imposición de folleto"
 
 [home.certSign]
 desc = "Firmar un PDF con certificado/clave digital (PEM/P12)"
@@ -4360,7 +4360,7 @@ title = "Recortar PDF"
 [home.devAirgapped]
 desc = "Enlace a la guía de configuración aislada"
 tags = "air-gapped,offline,aislado,sin internet,desconectado,seguro,aislamiento de red,independiente"
-title = "Configuración Aislada"
+title = "Instalación sin conexión"
 
 [home.devApi]
 desc = "Enlace a la documentación de API"
@@ -4370,7 +4370,7 @@ title = "API"
 [home.devFolderScanning]
 desc = "Enlace a la guía de escaneo automatizado de carpetas"
 tags = "automatización,carpeta,escaneo"
-title = "Escaneo Automatizado de Carpetas"
+title = "Escaneo automatizado de carpetas"
 
 [home.devSsoGuide]
 desc = "Enlace a la guía de SSO"
@@ -4380,7 +4380,7 @@ title = "Guía de SSO"
 [home.editTableOfContents]
 desc = "Agregar o editar marcadores y tabla de contenidos en documentos PDF"
 tags = "marcadores,contenidos,editar"
-title = "Editar Tabla de Contenidos"
+title = "Editar tabla de contenidos"
 
 [home.extractImages]
 desc = "Extraer todas las imágenes de un PDF y guardarlas en ZIP"
@@ -4390,12 +4390,12 @@ title = "Extraer imágenes"
 [home.extractPages]
 desc = "Extraer páginas específicas de un documento PDF"
 tags = "extraer,seleccionar,copiar"
-title = "Extraer Páginas"
+title = "Extraer páginas"
 
 [home.flatten]
 desc = "Eliminar todos los elementos interactivos y formularios de un PDF"
 tags = "simplificar,eliminar,interactivo"
-title = "Eliminar interactividad"
+title = "Aplanar PDF"
 
 [home.formFill]
 desc = "Rellena los campos de formulario del PDF de forma interactiva con un editor visual"
@@ -4404,11 +4404,11 @@ title = "Rellenar formulario"
 [home.getPdfInfo]
 desc = "Obtiene toda la información posible de archivos PDF"
 tags = "info,metadatos,detalles"
-title = "Obtener toda la información en PDF"
+title = "Ver toda la información del PDF"
 
 [home.manageCertificates]
 tags = "certificados,importar,exportar"
-title = "Administrar Certificados"
+title = "Administrar certificados"
 
 [home.merge]
 desc = "Unir fácilmente múltiples PDFs en uno"
@@ -4428,7 +4428,7 @@ workspace = "Espacio de trabajo"
 [home.multiTool]
 desc = "Combinar, rotar, reorganizar y eliminar páginas"
 tags = "múltiple,herramientas"
-title = "Multi-herramienta PDF"
+title = "Multiherramienta"
 
 [home.ocr]
 desc = "Limpiar escaneos y detectar texto en imágenes dentro de un PDF para volver a agregarlo como texto editable"
@@ -4452,7 +4452,7 @@ title = "Añadir comentarios con IA"
 
 [home.pdfOrganiser]
 tags = "organizar,reorganizar,reordenar"
-title = "Organizador"
+title = "Organizar"
 
 [home.pdfTextEditor]
 desc = "Revise y edite exportaciones JSON de Stirling PDF con edición de texto agrupada y regeneración de PDF"
@@ -4470,14 +4470,14 @@ tags = "ver,abrir,mostrar"
 title = "Leer"
 
 [home.redact]
-desc = "Ocultar texto confidencial en PDF"
-tags = "censurar,ocultar,tapar"
-title = "Redactar"
+desc = "Tacha y elimina de forma permanente texto, imágenes o páginas con datos sensibles"
+tags = "censurar,tachar,ocultar,tapar,anonimizar,datos personales,confidencial,privacidad,RGPD,LOPD,eliminar datos sensibles,redactar"
+title = "Censurar"
 
 [home.removeAnnotations]
 desc = "Eliminar todos los comentarios/anotaciones de un PDF"
 tags = "eliminar,limpiar,quitar"
-title = "Eliminar Anotaciones"
+title = "Eliminar anotaciones"
 
 [home.removeBlanks]
 desc = "Detectar y eliminar páginas en blanco de un documento"
@@ -4487,7 +4487,7 @@ title = "Eliminar páginas en blanco"
 [home.removeCertSign]
 desc = "Eliminar firma de certificado del PDF"
 tags = "eliminar,borrar,desbloquear"
-title = "Eliminar firma de cert."
+title = "Eliminar firma del certificado"
 
 [home.removeImage]
 desc = "Eliminar imagen del PDF para reducir el tamaño de archivo"
@@ -4497,7 +4497,7 @@ title = "Eliminar imagen"
 [home.removePages]
 desc = "Eliminar páginas no deseadas del documento PDF"
 tags = "eliminar,extraer,excluir"
-title = "Eliminar"
+title = "Eliminar páginas"
 
 [home.removePassword]
 desc = "Quitar protección por contraseña del documento PDF"
@@ -4507,7 +4507,7 @@ title = "Quitar contraseña"
 [home.reorganizePages]
 desc = "Reorganice, duplique o elimine páginas PDF con control visual de arrastrar y soltar."
 tags = "reorganizar,reordenar,organizar"
-title = "Reorganizar Páginas"
+title = "Reorganizar páginas"
 
 [home.repair]
 desc = "Intentar reparar un PDF corrupto/roto"
@@ -4517,7 +4517,7 @@ title = "Reparar"
 [home.replaceColor]
 desc = "Reemplace o invierta colores en documentos PDF"
 tags = "reemplazar color,invertir color,reemplazo de color,intercambiar colores,cambiar color,invertir,negativo,intercambio de color,buscar y reemplazar color,convertir color,cambio de color"
-title = "Reemplazar e Invertir Color"
+title = "Reemplazar o invertir colores"
 
 [home.rotate]
 desc = "Rotar fácilmente sus PDFs"
@@ -4527,7 +4527,7 @@ title = "Rotar"
 [home.sanitize]
 desc = "Eliminar elementos potencialmente peligrosos de archivos PDF"
 tags = "limpiar,purgar,eliminar"
-title = "Desinfectar"
+title = "Quitar contenido activo"
 
 [home.scalePages]
 desc = "Escalar/cambiar el tamaño de una pagina y/o su contenido"
@@ -4537,12 +4537,12 @@ title = "Ajustar tamaño/escala"
 [home.scannerEffect]
 desc = "Cree un PDF que parezca escaneado"
 tags = "escanear,simular,crear"
-title = "Efecto de Escáner"
+title = "Efecto de escáner"
 
 [home.scannerImageSplit]
 desc = "Detecte y divida fotos escaneadas en páginas separadas"
 tags = "detectar,dividir,fotos"
-title = "Detecta y separa fotos"
+title = "Detectar y separar fotos escaneadas"
 
 [home.sharedSign]
 desc = "Solicita firmas a otras personas y controla las sesiones de firma"
@@ -4569,7 +4569,7 @@ title = "Dividir PDF por capítulos"
 
 [home.splitBySections]
 tags = "dividir,secciones,separar"
-title = "Dividir PDF por Secciones"
+title = "Dividir PDF por secciones"
 
 [home.swagger]
 tags = "API,documentación,prueba"
@@ -4578,12 +4578,12 @@ title = "Documentación de API"
 [home.timestampPdf]
 desc = "Añade una marca de tiempo de documento RFC 3161 para demostrar cuándo existía tu PDF"
 tags = "sello de tiempo,RFC 3161,TSA,autoridad de sellado de tiempo,sello de tiempo de documento,prueba de existencia,token de sello de tiempo,sello de tiempo de confianza,firmar sello de tiempo,notarizar"
-title = "Sello de tiempo en PDF"
+title = "Sello de tiempo"
 
 [home.unlockPDFForms]
 desc = "Elimine la propiedad de solo lectura de los campos de formulario en un documento PDF."
 tags = "desbloquear,habilitar,editar"
-title = "Desbloquear Formularios PDF"
+title = "Desbloquear formularios PDF"
 
 [home.validateSignature]
 desc = "Verificar firmas digitales y certificados en documentos PDF"
@@ -4834,7 +4834,7 @@ title = "Subir desde el móvil"
 
 [multiTool]
 tags = "Multi-herramienta,Multi-operación,Interfaz de usuario,Arrastrar con un click,front end,lado del cliente"
-title = "Multi-herramienta PDF"
+title = "Multiherramienta"
 
 [navbar]
 search = "Buscar"
@@ -8246,9 +8246,9 @@ files = "Archivos"
 tags = "view,open,display,read,viewer,PDF viewer,PDF reader,open PDF,view PDF,display PDF,preview,browse"
 
 [redact]
-submit = "Enviar"
-tags = "Redactar,Ocultar,oscurece,negro,marcador,oculto,manual"
-title = "Censurar texto Manualmente"
+submit = "Censurar"
+tags = "censurar,tachar,ocultar,tapar,anonimizar,confidencial,negro,marcador,manual"
+title = "Censurar"
 
 [redact.auto]
 colorLabel = "Color de Caja"
@@ -8268,12 +8268,13 @@ placeholder = "Introduzca una palabra"
 title = "Palabras a Censurar"
 
 [redact.error]
+commitIncomplete = "No se pudieron aplicar {{count}} censura(s), así que el archivo no se ha guardado. Guardarlo ahora dejaría el contenido oculto recuperable."
 failed = "Se produjo un error al censurar el PDF."
 
 [redact.manual]
 apply = "Aplicar"
 applyWarning = "⚠️ Aplicación permanente, no se puede deshacer y los datos subyacentes se eliminarán"
-colorLabel = "Color de redacción"
+colorLabel = "Color de censura"
 controlsTitle = "Controles de censura manual"
 instructions = "Selecciona texto o dibuja áreas en el PDF para marcar contenido para censura."
 title = "Herramientas de censura"
@@ -8618,7 +8619,7 @@ desc = "Eliminar elementos potencialmente dañinos de archivos PDF."
 sanitizationResults = "Resultados de Desinfección"
 submit = "Limpiar archivo PDF"
 tags = "clean,purge,remove,sanitize,sanitise,remove scripts,remove javascript,remove metadata,strip metadata,security,clean document,remove hidden data,privacy"
-title = "Desinfectar"
+title = "Quitar contenido activo"
 
 [sanitize.error]
 failed = "Se produjo un error al desinfectar el PDF."
@@ -9731,7 +9732,7 @@ desc = "Añade un sello de tiempo RFC 3161 a tu PDF usando un servidor de Autori
 results = "Resultados del sello de tiempo"
 submit = "Aplicar sello de tiempo"
 tags = "timestamp,RFC 3161,TSA,time stamp authority,document timestamp,proof of existence,timestamp token,trusted timestamp,sign timestamp,notarise"
-title = "Sello de tiempo en PDF"
+title = "Sello de tiempo"
 
 [timestampPdf.error]
 failed = "Se produjo un error al aplicar el sello de tiempo al PDF."
@@ -10632,13 +10633,13 @@ title = "Subir imagen de la firma"
 [workbenchBar]
 activeFiles = "Archivos activos"
 annotations = "Anotaciones"
-applyRedactionsFirst = "Aplicar redacciones primero"
+applyRedactionsFirst = "Aplica primero las censuras"
 closeAll = "Cerrar todos los archivos"
 closePdf = "Cerrar PDF"
 deleteSelected = "Eliminar páginas seleccionadas"
 deselectAll = "Deseleccionar todo"
 downloadAll = "Descargar todo"
-exitRedaction = "Salir del modo de redacción"
+exitRedaction = "Salir del modo censura"
 exportAll = "Exportar PDF"
 exportSelected = "Exportar páginas seleccionadas"
 formFill = "Rellenar formulario"
@@ -10648,7 +10649,7 @@ print = "Imprimir PDF"
 readAloud = "Leer en voz alta"
 readAloudLanguage = "Idioma"
 readAloudSpeed = "Velocidad"
-redact = "Redactar"
+redact = "Censurar"
 rotateLeft = "Girar a la izquierda"
 rotateRight = "Girar a la derecha"
 ruler = "Regla / Medir"
