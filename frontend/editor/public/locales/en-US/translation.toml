@@ -8351,6 +8351,7 @@ placeholder = "Enter a word"
 title = "Words to Redact"
 
 [redact.error]
+commitIncomplete = "{{count}} redaction(s) could not be applied, so the file was not saved. Saving now would leave the hidden content recoverable."
 failed = "An error occurred while redacting the PDF."
 
 [redact.manual]

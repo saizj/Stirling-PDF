@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import stirling.software.SPDF.controller.api.security.RedactionVerificationService.RedactionTarget;
 import stirling.software.SPDF.model.PDFText;
 import stirling.software.SPDF.model.api.security.RedactExecuteRequest;
 import stirling.software.SPDF.model.api.security.RedactExecuteRequest.ImageBox;
@@ -42,6 +43,7 @@ class RedactExecuteService {
     private final CustomPDFDocumentFactory pdfDocumentFactory;
     private final ManualRedactionService manualRedactionService;
     private final TextRedactionService textRedactionService;
+    private final RedactionVerificationService redactionVerificationService;
 
     TempFile execute(RedactExecuteRequest request) throws IOException {
         RedactStyle style = request.getStyle() != null ? request.getStyle() : new RedactStyle();
@@ -124,21 +126,30 @@ class RedactExecuteService {
             // Non-text operations.
             Map<Integer, PageColumnLayout> layoutCache = new HashMap<>();
 
+            // Every area these operations merely cover rather than remove. Verified once the
+            // overlays are drawn: whatever is still readable underneath gets rasterized away.
+            Map<Integer, List<PDRectangle>> coveredAreas = new HashMap<>();
+
             if (!wipePages.isEmpty()) {
                 applyPageWipe(document, wipePages, style);
             }
 
             for (TextRange range : ranges) {
-                applyRangeRedaction(document, range, style, layoutCache);
+                applyRangeRedaction(document, range, style, layoutCache, coveredAreas);
             }
 
             for (ImageBox box : imageBoxes) {
-                applyImageBoxRedaction(document, box, style);
+                applyImageBoxRedaction(document, box, style, coveredAreas);
             }
 
             if (request.getRedactImagePages() != null) {
-                applyAllImagesRedaction(document, request.getRedactImagePages(), style);
+                applyAllImagesRedaction(
+                        document, request.getRedactImagePages(), style, coveredAreas);
             }
+
+            RedactionTarget verificationTarget =
+                    new RedactionTarget(
+                            cleanList(textValues), cleanList(regexPatterns), coveredAreas, false);
 
             return manualRedactionService.finalizeRedaction(
                     document,
@@ -146,7 +157,10 @@ class RedactExecuteService {
                     style.getColor(),
                     style.getPadding(),
                     convertToImage,
-                    !needsOverlayOnly);
+                    !needsOverlayOnly,
+                    redactedDocument ->
+                            redactionVerificationService.secure(
+                                    redactedDocument, verificationTarget));
 
         } catch (Exception e) {
             log.error("Execute redaction failed: {}", e.getMessage(), e);
@@ -308,7 +322,8 @@ class RedactExecuteService {
             PDDocument document,
             TextRange range,
             RedactStyle style,
-            Map<Integer, PageColumnLayout> layoutCache)
+            Map<Integer, PageColumnLayout> layoutCache,
+            Map<Integer, List<PDRectangle>> coveredAreas)
             throws IOException {
         String rangeStart = trimOrEmpty(range.startString());
         String rangeEnd = trimOrEmpty(range.endString());
@@ -316,6 +331,7 @@ class RedactExecuteService {
         try {
             List<PDFText> blocks = collectRangeBlocks(document, rangeStart, rangeEnd, layoutCache);
             if (!blocks.isEmpty()) {
+                recordCoveredBlocks(document, blocks, coveredAreas);
                 manualRedactionService.redactFoundText(
                         document,
                         blocks,
@@ -333,7 +349,11 @@ class RedactExecuteService {
         }
     }
 
-    private void applyImageBoxRedaction(PDDocument document, ImageBox box, RedactStyle style)
+    private void applyImageBoxRedaction(
+            PDDocument document,
+            ImageBox box,
+            RedactStyle style,
+            Map<Integer, List<PDRectangle>> coveredAreas)
             throws IOException {
         List<float[]> boxes =
                 List.of(
@@ -341,12 +361,24 @@ class RedactExecuteService {
                             (float) box.pageIndex(), box.x1(), box.y1(), box.x2(), box.y2()
                         });
         log.info("[redact/execute] image box overlay on page {}", box.pageIndex());
+        recordCoveredArea(
+                coveredAreas,
+                box.pageIndex(),
+                new PDRectangle(
+                        Math.min(box.x1(), box.x2()),
+                        Math.min(box.y1(), box.y2()),
+                        Math.abs(box.x2() - box.x1()),
+                        Math.abs(box.y2() - box.y1())));
         Color boxColor = ManualRedactionService.decodeOrDefault(style.getColor());
         manualRedactionService.redactImageBoxes(document, boxes, boxColor);
     }
 
     private void applyAllImagesRedaction(
-            PDDocument document, List<Integer> pageNumbers, RedactStyle style) throws IOException {
+            PDDocument document,
+            List<Integer> pageNumbers,
+            RedactStyle style,
+            Map<Integer, List<PDRectangle>> coveredAreas)
+            throws IOException {
         PDPageTree allPages = document.getDocumentCatalog().getPages();
         Color imgColor = ManualRedactionService.decodeOrDefault(style.getColor());
 
@@ -382,7 +414,45 @@ class RedactExecuteService {
                 imagePageIndices.size());
 
         if (!detectedBoxes.isEmpty()) {
+            for (float[] box : detectedBoxes) {
+                recordCoveredArea(
+                        coveredAreas,
+                        (int) box[0],
+                        new PDRectangle(box[1], box[2], box[3] - box[1], box[4] - box[2]));
+            }
             manualRedactionService.redactImageBoxes(document, detectedBoxes, imgColor);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Covered-area bookkeeping
+    // -----------------------------------------------------------------------
+
+    private void recordCoveredArea(
+            Map<Integer, List<PDRectangle>> coveredAreas, int pageIndex, PDRectangle area) {
+        coveredAreas.computeIfAbsent(pageIndex, k -> new ArrayList<>()).add(area);
+    }
+
+    /** Records the page-space rectangles that {@code redactFoundText} will draw over the blocks. */
+    private void recordCoveredBlocks(
+            PDDocument document,
+            List<PDFText> blocks,
+            Map<Integer, List<PDRectangle>> coveredAreas) {
+        PDPageTree allPages = document.getDocumentCatalog().getPages();
+        for (PDFText block : blocks) {
+            int pageIndex = block.getPageIndex();
+            if (pageIndex < 0 || pageIndex >= allPages.getCount()) {
+                continue;
+            }
+            float pageHeight = allPages.get(pageIndex).getBBox().getHeight();
+            recordCoveredArea(
+                    coveredAreas,
+                    pageIndex,
+                    new PDRectangle(
+                            block.getX1(),
+                            pageHeight - block.getY2(),
+                            block.getX2() - block.getX1(),
+                            block.getY2() - block.getY1()));
         }
     }
 
@@ -814,6 +884,10 @@ class RedactExecuteService {
 
     private static <T> List<T> orEmpty(List<T> list) {
         return list != null ? list : List.of();
+    }
+
+    private static List<String> cleanList(List<String> input) {
+        return List.of(cleanStrings(input));
     }
 
     private static String[] cleanStrings(List<String> input) {

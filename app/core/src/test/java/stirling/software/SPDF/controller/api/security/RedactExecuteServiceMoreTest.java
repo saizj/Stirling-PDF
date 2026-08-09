@@ -40,6 +40,7 @@ import stirling.software.SPDF.model.api.security.RedactExecuteRequest.RedactStyl
 import stirling.software.SPDF.model.api.security.RedactExecuteRequest.RedactionStrategy;
 import stirling.software.SPDF.model.api.security.RedactExecuteRequest.TextRange;
 import stirling.software.SPDF.pdf.parser.PageColumnLayout;
+import stirling.software.common.model.ApplicationProperties;
 import stirling.software.common.service.CustomPDFDocumentFactory;
 import stirling.software.common.util.TempFile;
 import stirling.software.common.util.TempFileManager;
@@ -91,7 +92,12 @@ class RedactExecuteServiceMoreTest {
 
         manualRedactionService = new ManualRedactionService(tempFileManager);
         textRedactionService = new TextRedactionService();
-        service = new RedactExecuteService(factory, manualRedactionService, textRedactionService);
+        service =
+                new RedactExecuteService(
+                        factory,
+                        manualRedactionService,
+                        textRedactionService,
+                        new RedactionVerificationService(new ApplicationProperties()));
     }
 
     @AfterEach
@@ -358,7 +364,7 @@ class RedactExecuteServiceMoreTest {
     class StrategiesAndStyle {
 
         @Test
-        @DisplayName("OVERLAY_ONLY strategy skips content-stream rewriting but still overlays")
+        @DisplayName("OVERLAY_ONLY strategy skips content-stream rewriting yet still removes text")
         void overlayOnlyStrategy() throws IOException {
             byte[] pdf = singlePageTextPdf("overlay SECRET only mode");
             factoryReturns(pdf);
@@ -370,9 +376,10 @@ class RedactExecuteServiceMoreTest {
             req.setStyle(style);
 
             try (TempFile out = service.execute(req)) {
-                // Overlay-only draws a box over the text but does not rewrite the stream, so the
-                // glyphs are still extractable underneath the box.
-                assertThat(extractText(out)).contains("SECRET");
+                // Overlay-only draws a box over the text instead of rewriting the stream, which on
+                // its own would leave the glyphs extractable underneath. Verification catches that
+                // and rasterizes the page, so the redacted term never survives into the output.
+                assertThat(extractText(out)).doesNotContain("SECRET");
             }
         }
 

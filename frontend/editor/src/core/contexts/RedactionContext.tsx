@@ -20,7 +20,11 @@ export interface RedactionAPI {
   isRedactActive: () => boolean;
   endRedact: () => void;
   // Common methods
-  commitAllPending: () => void;
+  // Resolves only once the underlying engine has actually removed the redacted
+  // content. Rejects if the commit fails — callers must not export the document
+  // on rejection, or they would ship a PDF whose "redactions" are still just
+  // annotations drawn over readable content.
+  commitAllPending: () => Promise<void>;
   getActiveType: () => RedactionMode | null;
   getPendingCount: () => number;
 }
@@ -64,7 +68,7 @@ interface RedactionActions {
   // Unified redaction actions (v2.5.0)
   activateRedact: () => void;
   deactivateRedact: () => void;
-  commitAllPending: () => void;
+  commitAllPending: () => Promise<void>;
   // Unified manual redaction action
   activateManualRedact: () => void;
   // Legacy UI actions (for backwards compatibility with UI)
@@ -196,13 +200,13 @@ export const RedactionProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  const commitAllPending = useCallback(() => {
-    if (redactionApiRef.current) {
-      redactionApiRef.current.commitAllPending();
-      // Mark redactions as applied (but not yet saved) so the Save Changes button stays enabled
-      // The button will only be disabled after the file is successfully saved
-      setRedactionsApplied(true);
-    }
+  const commitAllPending = useCallback(async () => {
+    if (!redactionApiRef.current) return;
+    // Await the engine: the content is only actually gone once this resolves.
+    await redactionApiRef.current.commitAllPending();
+    // Mark redactions as applied (but not yet saved) so the Save Changes button stays enabled
+    // The button will only be disabled after the file is successfully saved
+    setRedactionsApplied(true);
   }, [setRedactionsApplied]);
 
   const activateManualRedact = useCallback(() => {

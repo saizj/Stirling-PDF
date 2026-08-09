@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import stirling.software.SPDF.model.PDFText;
 import stirling.software.SPDF.pdf.parser.PageColumnLayout;
+import stirling.software.common.model.ApplicationProperties;
 
 /**
  * Integration tests for {@link RedactExecuteService#collectRangeBlocks(PDDocument, String, String,
@@ -39,7 +40,11 @@ class RedactExecuteServiceTest {
     private static final float FONT_SIZE = 11f;
 
     private final RedactExecuteService service =
-            new RedactExecuteService(null, null, new TextRedactionService());
+            new RedactExecuteService(
+                    null,
+                    null,
+                    new TextRedactionService(),
+                    new RedactionVerificationService(new ApplicationProperties()));
 
     @Nested
     @DisplayName("Single-column documents")

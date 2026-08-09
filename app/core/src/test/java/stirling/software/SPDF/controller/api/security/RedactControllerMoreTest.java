@@ -39,6 +39,7 @@ import org.springframework.web.multipart.MultipartFile;
 import stirling.software.SPDF.model.api.security.ManualRedactPdfRequest;
 import stirling.software.SPDF.model.api.security.RedactExecuteRequest;
 import stirling.software.SPDF.model.api.security.RedactPdfRequest;
+import stirling.software.common.model.ApplicationProperties;
 import stirling.software.common.model.api.security.RedactionArea;
 import stirling.software.common.service.CustomPDFDocumentFactory;
 import stirling.software.common.util.TempFile;
@@ -99,7 +100,8 @@ class RedactControllerMoreTest {
                         tempFileManager,
                         manualRedactionService,
                         textRedactionService,
-                        redactExecuteService);
+                        redactExecuteService,
+                        new RedactionVerificationService(new ApplicationProperties()));
     }
 
     @AfterEach
@@ -377,6 +379,44 @@ class RedactControllerMoreTest {
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(drainBody(response).length).isGreaterThan(0);
+        }
+
+        @Test
+        @DisplayName("text under a redaction box is not recoverable from the output")
+        void textUnderBoxIsUnrecoverable() throws IOException {
+            byte[] bytes = singlePageTextPdf("policy number SECRET-4471");
+            factoryReturns(bytes);
+
+            ManualRedactPdfRequest request = manualRequest(bytes);
+            List<RedactionArea> areas = new ArrayList<>();
+            // Screen-space box (origin top-left) covering the line drawn at TOP_Y.
+            areas.add(area(1, 60, 62, 400, 32, "000000"));
+            request.setRedactions(areas);
+            // No rasterize-everything shortcut: the box alone used to leave the text readable.
+            request.setConvertPDFToImage(false);
+
+            ResponseEntity<Resource> response = controller.redactPDF(request);
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            assertThat(pdfText(drainBody(response))).doesNotContain("SECRET-4471");
+        }
+
+        @Test
+        @DisplayName("a page redacted in full keeps none of its text")
+        void fullPageRedactionRemovesText() throws IOException {
+            byte[] bytes = multiPageTextPdf("page one WIPED", "page two KEPT");
+            factoryReturns(bytes);
+
+            ManualRedactPdfRequest request = manualRequest(bytes);
+            request.setPageNumbers("1");
+            request.setPageRedactionColor("#000000");
+            request.setConvertPDFToImage(false);
+
+            ResponseEntity<Resource> response = controller.redactPDF(request);
+
+            String text = pdfText(drainBody(response));
+            assertThat(text).doesNotContain("WIPED");
+            assertThat(text).contains("KEPT");
         }
 
         @Test

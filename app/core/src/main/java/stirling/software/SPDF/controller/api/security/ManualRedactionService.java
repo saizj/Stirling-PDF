@@ -101,6 +101,56 @@ class ManualRedactionService {
         }
     }
 
+    /**
+     * The same rectangles {@link #redactAreas} paints, expressed in PDF user-space and keyed by
+     * 0-based page index. Used to check whether content survives underneath them.
+     */
+    Map<Integer, List<PDRectangle>> toUserSpaceAreas(
+            List<RedactionArea> redactionAreas, PDPageTree allPages) {
+
+        Map<Integer, List<PDRectangle>> areasByPage = new HashMap<>();
+        if (redactionAreas == null) {
+            return areasByPage;
+        }
+
+        for (RedactionArea area : redactionAreas) {
+            if (area.getPage() == null
+                    || area.getPage() <= 0
+                    || area.getPage() > allPages.getCount()
+                    || area.getHeight() == null
+                    || area.getHeight() <= 0.0D
+                    || area.getWidth() == null
+                    || area.getWidth() <= 0.0D) {
+                continue;
+            }
+
+            try {
+                PDPage page = allPages.get(area.getPage() - 1);
+                float x = area.getX().floatValue();
+                float y = area.getY().floatValue();
+                float width = area.getWidth().floatValue();
+                float height = area.getHeight().floatValue();
+                float pdfY = page.getBBox().getHeight() - y - height;
+
+                areasByPage
+                        .computeIfAbsent(area.getPage() - 1, k -> new ArrayList<>())
+                        .add(new PDRectangle(x, pdfY, width, height));
+            } catch (Exception e) {
+                log.debug(
+                        "[redact] could not map redaction area on page {}: {}",
+                        area.getPage(),
+                        e.getMessage());
+            }
+        }
+
+        return areasByPage;
+    }
+
+    /** 0-based indices of the pages {@link #redactPages} blacks out entirely. */
+    List<Integer> getRedactedPageIndices(ManualRedactPdfRequest request, int pagesCount) {
+        return getPageNumbers(request, pagesCount);
+    }
+
     void redactPages(ManualRedactPdfRequest request, PDDocument document, PDPageTree allPages)
             throws IOException {
 
@@ -292,6 +342,16 @@ class ManualRedactionService {
     // Finalization
     // -----------------------------------------------------------------------
 
+    /**
+     * Runs on the redacted document after the redaction boxes have been drawn and before it is
+     * saved. Used to guarantee the redacted content is unrecoverable — see {@link
+     * RedactionVerificationService}.
+     */
+    @FunctionalInterface
+    interface RedactionSafetyPass {
+        void apply(PDDocument document) throws IOException;
+    }
+
     TempFile finalizeRedaction(
             PDDocument document,
             Map<Integer, List<PDFText>> allFoundTextsByPage,
@@ -299,6 +359,25 @@ class ManualRedactionService {
             float customPadding,
             Boolean convertToImage,
             boolean isTextRemovalMode)
+            throws IOException {
+        return finalizeRedaction(
+                document,
+                allFoundTextsByPage,
+                colorString,
+                customPadding,
+                convertToImage,
+                isTextRemovalMode,
+                null);
+    }
+
+    TempFile finalizeRedaction(
+            PDDocument document,
+            Map<Integer, List<PDFText>> allFoundTextsByPage,
+            String colorString,
+            float customPadding,
+            Boolean convertToImage,
+            boolean isTextRemovalMode,
+            RedactionSafetyPass safetyPass)
             throws IOException {
 
         List<PDFText> allFoundTexts = new ArrayList<>();
@@ -310,6 +389,13 @@ class ManualRedactionService {
             Color redactColor = decodeOrDefault(colorString);
             redactFoundText(document, allFoundTexts, customPadding, redactColor, isTextRemovalMode);
             cleanDocumentMetadata(document);
+        }
+
+        // Runs after the boxes are drawn: anything it rasterizes therefore captures the boxes
+        // rather than the content they cover. Skipped when the whole document is about to be
+        // rasterized anyway.
+        if (safetyPass != null && !Boolean.TRUE.equals(convertToImage)) {
+            safetyPass.apply(document);
         }
 
         if (Boolean.TRUE.equals(convertToImage)) {

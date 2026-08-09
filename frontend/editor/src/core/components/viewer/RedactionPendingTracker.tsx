@@ -3,7 +3,12 @@ import { useRedaction as useEmbedPdfRedaction } from "@embedpdf/plugin-redaction
 import { useActiveDocumentId } from "@app/components/viewer/useActiveDocumentId";
 
 export interface RedactionPendingTrackerAPI {
-  commitAllPending: () => void;
+  /**
+   * Permanently removes the content under every pending redaction. The returned
+   * promise resolves only once the engine has finished; callers must await it
+   * before exporting, otherwise the export still contains the redacted content.
+   */
+  commitAllPending: () => Promise<void>;
   getPendingCount: () => number;
 }
 
@@ -34,12 +39,23 @@ const RedactionPendingTrackerInner = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      commitAllPending: () => {
-        if (provides?.commitAllPending) {
-          provides.commitAllPending();
+      commitAllPending: async () => {
+        if (!provides?.commitAllPending) {
+          throw new Error("Redaction engine is not available");
         }
+        await provides.commitAllPending().toPromise();
       },
-      getPendingCount: () => pendingCountRef.current,
+      // Read the live plugin state rather than the React-synced ref: callers
+      // check this immediately after committing, before React has re-rendered.
+      getPendingCount: () => {
+        try {
+          const pendingCount = provides?.getState()?.pendingCount;
+          if (typeof pendingCount === "number") return pendingCount;
+        } catch {
+          // Plugin has no state for this document yet — fall back to the ref.
+        }
+        return pendingCountRef.current;
+      },
     }),
     [provides],
   );

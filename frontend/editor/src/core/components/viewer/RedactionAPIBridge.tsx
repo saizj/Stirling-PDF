@@ -87,10 +87,15 @@ function RedactionAPIBridgeInner({ documentId }: { documentId: string }) {
         redactionProvides?.endRedact();
       },
       // Common methods
-      commitAllPending: () => {
-        redactionProvides?.commitAllPending();
+      commitAllPending: async () => {
+        // Await the engine task: until it resolves the redacted content is still
+        // present in the document, hidden only by the redaction annotation.
         // Don't set redactionsApplied here - it should only be set after the file is saved
         // The save operation in applyChanges will handle setting/clearing this flag
+        if (!redactionProvides) {
+          throw new Error("Redaction engine is not available");
+        }
+        await redactionProvides.commitAllPending().toPromise();
       },
       getActiveType: () => state?.activeType ?? null,
       getPendingCount: () => state?.pendingCount ?? 0,

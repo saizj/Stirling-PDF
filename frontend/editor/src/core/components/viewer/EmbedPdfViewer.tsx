@@ -705,9 +705,25 @@ const EmbedPdfViewerContent = ({
 
       if (hadPendingRedactions) {
         console.log("[Viewer] Committing pending redactions before export");
-        redactionTrackerRef.current?.commitAllPending();
-        // Give a small delay for the commit to process
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // This MUST complete before exporting. Until it resolves the redacted
+        // content is still in the document, covered only by a redaction
+        // annotation — exporting early would produce a PDF that looks redacted
+        // but from which the content can be recovered by copy/paste or by
+        // deleting the annotation. If it fails we abort the save entirely
+        // rather than write out a file with unredacted content.
+        await redactionTrackerRef.current!.commitAllPending();
+
+        const stillPending =
+          redactionTrackerRef.current?.getPendingCount() ?? 0;
+        if (stillPending > 0) {
+          throw new Error(
+            t(
+              "redact.error.commitIncomplete",
+              "{{count}} redaction(s) could not be applied, so the file was not saved. Saving now would leave the hidden content recoverable.",
+              { count: stillPending },
+            ),
+          );
+        }
       }
 
       // Step 1: Export PDF with annotations using EmbedPDF

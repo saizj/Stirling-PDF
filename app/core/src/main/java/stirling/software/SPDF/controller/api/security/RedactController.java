@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPageTree;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import stirling.software.SPDF.config.swagger.StandardPdfResponse;
+import stirling.software.SPDF.controller.api.security.ManualRedactionService.RedactionSafetyPass;
+import stirling.software.SPDF.controller.api.security.RedactionVerificationService.RedactionTarget;
 import stirling.software.SPDF.model.PDFText;
 import stirling.software.SPDF.model.api.security.ManualRedactPdfRequest;
 import stirling.software.SPDF.model.api.security.RedactExecuteRequest;
@@ -54,6 +57,7 @@ public class RedactController {
     private final ManualRedactionService manualRedactionService;
     private final TextRedactionService textRedactionService;
     private final RedactExecuteService redactExecuteService;
+    private final RedactionVerificationService redactionVerificationService;
 
     private String removeFileExtension(String filename) {
         return stirling.software.common.util.GeneralUtils.removeExtension(filename);
@@ -97,8 +101,28 @@ public class RedactController {
         try (PDDocument document = pdfDocumentFactory.load(file)) {
             PDPageTree allPages = document.getDocumentCatalog().getPages();
 
+            // Captured before the boxes are drawn, so the check below sees the content the boxes
+            // are about to cover rather than the boxes themselves.
+            Map<Integer, List<PDRectangle>> redactedAreas =
+                    manualRedactionService.toUserSpaceAreas(request.getRedactions(), allPages);
+            List<Integer> fullyRedactedPages =
+                    manualRedactionService.getRedactedPageIndices(request, allPages.getCount());
+
             manualRedactionService.redactPages(request, document, allPages);
             manualRedactionService.redactAreas(request.getRedactions(), document, allPages);
+
+            if (!Boolean.TRUE.equals(request.getConvertPDFToImage())) {
+                // Boxes alone only hide content: the text and images under them stay in the file
+                // and come straight back if the box is removed. A page blacked out in full keeps
+                // nothing worth preserving, so discard its content outright; for the rest, check
+                // what survives under each box and rasterize only those pages.
+                redactionVerificationService.wipePages(
+                        document,
+                        fullyRedactedPages,
+                        ManualRedactionService.decodeOrDefault(request.getPageRedactionColor()));
+                redactionVerificationService.secure(
+                        document, RedactionTarget.ofAreas(redactedAreas));
+            }
 
             if (Boolean.TRUE.equals(request.getConvertPDFToImage())) {
                 try (PDDocument convertedPdf = PdfUtils.convertPdfToPdfImage(document)) {
@@ -209,6 +233,19 @@ public class RedactController {
                 fallbackToBoxOnlyMode = true;
             }
 
+            // Verifies, once the boxes are drawn, that none of the redacted text can still be
+            // extracted — and rasterizes any page where it can. Without this, box-only mode (and
+            // any partial text removal) would ship a PDF whose "redacted" text is one copy-paste
+            // away.
+            RedactionSafetyPass safetyPass =
+                    redactedDocument ->
+                            redactionVerificationService.secure(
+                                    redactedDocument,
+                                    RedactionTarget.ofText(
+                                            useRegex ? List.of() : List.of(listOfText),
+                                            useRegex ? List.of(listOfText) : List.of(),
+                                            wholeWordSearchBool));
+
             if (fallbackToBoxOnlyMode) {
                 log.warn(
                         "Font compatibility issues detected. Using box-only redaction mode for better reliability.");
@@ -226,7 +263,8 @@ public class RedactController {
                                 request.getRedactColor(),
                                 request.getCustomPadding(),
                                 request.getConvertPDFToImage(),
-                                false);
+                                false,
+                                safetyPass);
 
                 return WebResponseUtils.pdfFileToWebResponse(finalized, filename);
             }
@@ -238,7 +276,8 @@ public class RedactController {
                             request.getRedactColor(),
                             request.getCustomPadding(),
                             request.getConvertPDFToImage(),
-                            true);
+                            true,
+                            safetyPass);
 
             return WebResponseUtils.pdfFileToWebResponse(finalized, filename);
 
