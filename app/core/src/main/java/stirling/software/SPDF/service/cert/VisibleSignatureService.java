@@ -89,6 +89,10 @@ public class VisibleSignatureService {
             pageIndex = clampPage(placement.pageIndex(), doc.getNumberOfPages());
             PDPage page = doc.getPage(pageIndex);
             PDRectangle rect = toPdfRectangle(page.getMediaBox(), placement);
+            PDImageXObject image = buildOpaqueImage(doc, signatureImage);
+            if (image != null) {
+                rect = fitPreservingAspect(rect, image.getWidth(), image.getHeight());
+            }
             rectPoints =
                     new float[] {
                         rect.getLowerLeftX(),
@@ -96,7 +100,6 @@ public class VisibleSignatureService {
                         rect.getWidth(),
                         rect.getHeight()
                     };
-            PDImageXObject image = buildOpaqueImage(doc, signatureImage);
             if (image != null) {
                 try (PDPageContentStream cs =
                         new PDPageContentStream(
@@ -150,6 +153,30 @@ public class VisibleSignatureService {
         float height = p.heightFraction() * pageHeight;
         float x = mediaBox.getLowerLeftX() + p.xFraction() * pageWidth;
         float y = mediaBox.getLowerLeftY() + pageHeight - (p.yFraction() * pageHeight) - height;
+        return new PDRectangle(x, y, width, height);
+    }
+
+    /**
+     * Shrink the placed rectangle to the appearance image's own aspect ratio, centred inside it.
+     *
+     * <p>The placement overlay always creates a 150x75 (2:1) box but renders the appearance with
+     * CSS {@code object-fit: contain}, so on screen the mark keeps its proportions and is
+     * letterboxed inside that box. Stamping with {@code drawImage(x, y, w, h)} instead stretches
+     * the image to fill the rectangle, which inflated the composed appearance (820x250, 3.28:1)
+     * vertically by ~64% — the signed PDF looked nothing like the preview. Fitting here reproduces
+     * the same contain behaviour, and because the widget reuses this rectangle the clickable
+     * signature region hugs the visible mark too.
+     */
+    private static PDRectangle fitPreservingAspect(
+            PDRectangle rect, float imageWidth, float imageHeight) {
+        if (imageWidth <= 0 || imageHeight <= 0) {
+            return rect;
+        }
+        float scale = Math.min(rect.getWidth() / imageWidth, rect.getHeight() / imageHeight);
+        float width = imageWidth * scale;
+        float height = imageHeight * scale;
+        float x = rect.getLowerLeftX() + (rect.getWidth() - width) / 2f;
+        float y = rect.getLowerLeftY() + (rect.getHeight() - height) / 2f;
         return new PDRectangle(x, y, width, height);
     }
 
