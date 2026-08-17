@@ -1,6 +1,6 @@
 {
-  "short_name": "Stirling PDF",
-  "name": "Stirling PDF",
+  "short_name": "Blasai-PDF",
+  "name": "Blasai-PDF",
   "icons": [
     {
       "src": "modern-logo/favicon.ico",
@@ -19,7 +19,19 @@
     }
   ],
   "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/pdf": [".pdf"]
+      }
+    }
+  ]
 }
