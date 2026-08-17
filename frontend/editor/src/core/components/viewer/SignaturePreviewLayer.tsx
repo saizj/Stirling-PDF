@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tooltip } from "@mantine/core";
 import { ActionIcon } from "@app/ui/ActionIcon";
@@ -12,6 +12,51 @@ import {
 import type { SignaturePreview } from "@app/components/viewer/viewerTypes";
 
 const DEFAULT_COLOR = "rgb(0, 122, 204)";
+const PLACEMENT_MAX_WIDTH = 150;
+const PLACEMENT_MAX_HEIGHT = 75;
+
+/**
+ * Size a newly placed box to the mark itself rather than to fixed bounds.
+ *
+ * The mark is drawn with `object-fit: contain`, so a fixed box left dead space
+ * around anything whose ratio didn't match — and since the signed PDF stamps the
+ * placed rectangle, that dead space became a signature field larger than what
+ * the user could see. Contain-fitting the bounds here leaves the mark at exactly
+ * the size it already rendered at, with the box hugging it.
+ */
+function usePlacementSize(placementData?: string) {
+  const [size, setSize] = useState({
+    width: PLACEMENT_MAX_WIDTH,
+    height: PLACEMENT_MAX_HEIGHT,
+  });
+
+  useEffect(() => {
+    if (!placementData) {
+      return;
+    }
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (cancelled || !image.naturalWidth || !image.naturalHeight) {
+        return;
+      }
+      const scale = Math.min(
+        PLACEMENT_MAX_WIDTH / image.naturalWidth,
+        PLACEMENT_MAX_HEIGHT / image.naturalHeight,
+      );
+      setSize({
+        width: image.naturalWidth * scale,
+        height: image.naturalHeight * scale,
+      });
+    };
+    image.src = placementData;
+    return () => {
+      cancelled = true;
+    };
+  }, [placementData]);
+
+  return size;
+}
 const RESIZE_HANDLES = [
   { position: "nw", cursor: "nw-resize", top: -4, left: -4 },
   { position: "ne", cursor: "ne-resize", top: -4, right: -4 },
@@ -66,6 +111,8 @@ export const SignaturePreviewLayer = memo(function SignaturePreviewLayer({
     null,
   );
 
+  const placementSize = usePlacementSize(placementData);
+
   const pauseInteraction = () => interactionManager?.pause();
   const resumeInteraction = () => interactionManager?.resume();
 
@@ -80,8 +127,8 @@ export const SignaturePreviewLayer = memo(function SignaturePreviewLayer({
     const rect = e.currentTarget.getBoundingClientRect();
     // Store as fractions (0–1) of the rendered page so overlays remain correct
     // at any zoom level.
-    const sigWidth = 150 / pageWidth;
-    const sigHeight = 75 / pageHeight;
+    const sigWidth = placementSize.width / pageWidth;
+    const sigHeight = placementSize.height / pageHeight;
     const rawX = (e.clientX - rect.left) / pageWidth;
     const rawY = (e.clientY - rect.top) / pageHeight;
     const x = Math.max(0, Math.min(rawX - sigWidth / 2, 1 - sigWidth));
@@ -385,10 +432,22 @@ export const SignaturePreviewLayer = memo(function SignaturePreviewLayer({
           alt=""
           style={{
             position: "absolute",
-            left: Math.max(0, Math.min(cursorPos.x - 75, pageWidth - 150)),
-            top: Math.max(0, Math.min(cursorPos.y - 37.5, pageHeight - 75)),
-            width: 150,
-            height: 75,
+            left: Math.max(
+              0,
+              Math.min(
+                cursorPos.x - placementSize.width / 2,
+                pageWidth - placementSize.width,
+              ),
+            ),
+            top: Math.max(
+              0,
+              Math.min(
+                cursorPos.y - placementSize.height / 2,
+                pageHeight - placementSize.height,
+              ),
+            ),
+            width: placementSize.width,
+            height: placementSize.height,
             opacity: 0.6,
             pointerEvents: "none",
             objectFit: "contain",
