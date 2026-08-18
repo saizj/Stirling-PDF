@@ -21,6 +21,7 @@ import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.common.PDStream;
 import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
@@ -34,6 +35,7 @@ import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
 import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -332,7 +334,15 @@ public class VisibleSignatureService {
 
             if (hasText) {
                 drawTextBlock(
-                        cs, textLines, originX, originY, scale, textX, textWidth, regionHeight);
+                        doc,
+                        cs,
+                        textLines,
+                        originX,
+                        originY,
+                        scale,
+                        textX,
+                        textWidth,
+                        regionHeight);
             }
         }
     }
@@ -354,6 +364,7 @@ public class VisibleSignatureService {
     }
 
     private static void drawTextBlock(
+            PDDocument doc,
             PDPageContentStream cs,
             List<String> lines,
             float originX,
@@ -363,8 +374,10 @@ public class VisibleSignatureService {
             float textWidth,
             float regionHeight)
             throws IOException {
-        PDFont bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-        PDFont regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        PDFont bold =
+                loadFont(doc, "LiberationSans-Bold.ttf", Standard14Fonts.FontName.HELVETICA_BOLD);
+        PDFont regular =
+                loadFont(doc, "LiberationSans-Regular.ttf", Standard14Fonts.FontName.HELVETICA);
         float available = textWidth - TEXT_INSET * 2;
 
         // The first line is the emphasised one and sets the scale for the rest, exactly as the
@@ -395,6 +408,29 @@ public class VisibleSignatureService {
         }
     }
 
+    /**
+     * Embed the appearance font in the document.
+     *
+     * <p>A standard-14 Helvetica carries no glyphs — every reader substitutes its own. That is the
+     * one difference left between readers that render this signature crisply and readers that do
+     * not, so ship the outlines with the file instead of trusting whatever the viewer picks.
+     * Liberation Sans is metrically compatible with Helvetica, so the layout is unchanged, and
+     * embedding it also lifts the WinAnsi ceiling on accents.
+     *
+     * <p>Falls back to the standard font if the resource is missing: a signature with substituted
+     * glyphs beats a failed signature.
+     */
+    private static PDFont loadFont(
+            PDDocument doc, String fileName, Standard14Fonts.FontName fallback) {
+        try (InputStream stream =
+                new ClassPathResource("static/fonts/" + fileName).getInputStream()) {
+            return PDType0Font.load(doc, stream, true);
+        } catch (IOException e) {
+            log.warn("Could not embed {} in the signature appearance; falling back", fileName, e);
+            return new PDType1Font(fallback);
+        }
+    }
+
     /** Largest whole size that still fits the column, mirroring the composer's shrink loop. */
     private static float fitSize(PDFont font, String text, float maxSize, float maxWidth)
             throws IOException {
@@ -406,7 +442,7 @@ public class VisibleSignatureService {
     }
 
     /**
-     * Standard 14 fonts only carry WinAnsi, so a character outside it would abort the whole
+     * A glyph the embedded font does not carry (an emoji, say) would otherwise abort the whole
      * signature. Substitute rather than fail: a name is worth more with one odd glyph replaced than
      * not signed at all.
      */

@@ -11,9 +11,13 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDFontDescriptor;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 
@@ -137,6 +141,49 @@ class VisibleSignatureServiceTest {
         assertTrue(extracted.contains("BLASAI Software"), extracted);
         assertTrue(extracted.contains("50478386X"), extracted);
         assertTrue(extracted.contains("18/08/2026 09:48"), extracted);
+    }
+
+    @Test
+    void theAppearanceFontTravelsWithTheDocument() throws Exception {
+        // Without embedded outlines each reader substitutes its own font, which is exactly why the
+        // same file rendered crisply in one viewer and blurry in another.
+        Method draw =
+                VisibleSignatureService.class.getDeclaredMethod(
+                        "drawAppearance",
+                        PDDocument.class,
+                        PDPage.class,
+                        PDRectangle.class,
+                        BufferedImage.class,
+                        List.class);
+        draw.setAccessible(true);
+
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(PDRectangle.A4);
+            doc.addPage(page);
+            draw.invoke(
+                    new VisibleSignatureService(null),
+                    doc,
+                    page,
+                    new PDRectangle(60f, 600f, 149f, 45.4f),
+                    null,
+                    List.of("BLASAI Software", "50478386X"));
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            try (PDDocument reopened = Loader.loadPDF(out.toByteArray())) {
+                PDResources resources = reopened.getPage(0).getResources();
+                int fonts = 0;
+                for (COSName name : resources.getFontNames()) {
+                    PDFont font = resources.getFont(name);
+                    PDFontDescriptor descriptor = font.getFontDescriptor();
+                    assertTrue(
+                            descriptor != null && descriptor.getFontFile2() != null,
+                            "not embedded: " + font.getName());
+                    fonts++;
+                }
+                assertTrue(fonts > 0, "no fonts on the page at all");
+            }
+        }
     }
 
     @Test
