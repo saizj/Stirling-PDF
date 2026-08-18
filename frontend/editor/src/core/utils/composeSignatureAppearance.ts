@@ -22,6 +22,24 @@ export interface SignatureAppearanceOptions {
 
 const CANVAS_WIDTH = 820;
 const CANVAS_HEIGHT = 250;
+/** Every line after the first is drawn at this fraction of the first line's size. */
+const SECONDARY_RATIO = 0.74;
+
+/**
+ * The text block, in order; the first line is the emphasised one.
+ *
+ * <p>Shared with the signing call so the preview and the signed PDF can never disagree on what the
+ * block contains — the backend draws these same strings as real PDF text.
+ */
+export function signatureAppearanceLines(
+  options: SignatureAppearanceOptions,
+): string[] {
+  const lines: string[] = [];
+  if (options.includeName && options.name) lines.push(options.name);
+  if (options.includeId && options.signerId) lines.push(options.signerId);
+  if (options.includeDate && options.date) lines.push(options.date);
+  return lines;
+}
 
 const loadImage = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -131,20 +149,19 @@ export async function composeSignatureAppearance(
     const textX = textRegion.x + 6;
     const textW = textRegion.w - 12;
 
-    const items: { text: string; bold: boolean; rel: number }[] = [];
-    if (options.includeName && options.name) {
-      items.push({ text: options.name, bold: true, rel: 1 });
-    }
-    if (options.includeId && options.signerId) {
-      items.push({ text: options.signerId, bold: false, rel: 0.74 });
-    }
-    if (options.includeDate && options.date) {
-      items.push({ text: options.date, bold: false, rel: 0.74 });
-    }
+    const items = signatureAppearanceLines(options).map((text, index) => ({
+      text,
+      bold: index === 0,
+      rel: index === 0 ? 1 : SECONDARY_RATIO,
+    }));
 
     if (items.length > 0) {
       // Largest font that still fits the width — so the text fills the card.
-      const fitWidth = (text: string, bold: boolean, maxSize: number): number => {
+      const fitWidth = (
+        text: string,
+        bold: boolean,
+        maxSize: number,
+      ): number => {
         const f = (s: number) =>
           `${bold ? "bold " : ""}${s}px Helvetica, Arial, sans-serif`;
         let size = maxSize;

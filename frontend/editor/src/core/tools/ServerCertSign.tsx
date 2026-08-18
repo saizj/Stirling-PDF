@@ -34,7 +34,11 @@ import { Button } from "@app/ui/Button";
 import { SignatureCreationStep } from "@app/components/tools/certSign/steps/SignatureCreationStep";
 import { type SignatureType } from "@app/components/shared/wetSignature/SignatureTypeSelector";
 import apiClient from "@app/services/apiClient";
-import { composeSignatureAppearance } from "@app/utils/composeSignatureAppearance";
+import {
+  composeSignatureAppearance,
+  signatureAppearanceLines,
+  type SignatureAppearanceOptions,
+} from "@app/utils/composeSignatureAppearance";
 import { useSignatureModels } from "@app/hooks/tools/serverCertSign/useSignatureModels";
 import {
   useServerCertSignParameters,
@@ -59,8 +63,7 @@ const STORED_TYPE: Record<SignatureType, "canvas" | "image" | "text"> = {
 const NEW_MODEL = "__new__";
 
 /** "Contrato.pdf" -> "Contrato" */
-const stripPdfExtension = (name: string): string =>
-  name.replace(/\.pdf$/i, "");
+const stripPdfExtension = (name: string): string => name.replace(/\.pdf$/i, "");
 
 const formatNow = (): string => {
   const d = new Date();
@@ -160,26 +163,35 @@ const ServerCertSign = (props: BaseToolProps) => {
     }
   }, [base.selectedFiles.length, setWorkbench]);
 
-  const compose = useCallback((): Promise<string> => {
-    return composeSignatureAppearance({
+  // One description of the appearance, used both to render the preview and to tell the
+  // backend what to draw — so the two can't drift apart.
+  const appearanceOptions = useCallback(
+    (date: string): SignatureAppearanceOptions => ({
       signatureImage: signatureData,
       name: displayName,
       signerId: displayId,
-      date: formatNow(),
+      date,
       includeImage,
       includeName,
       includeId,
       includeDate,
-    });
-  }, [
-    signatureData,
-    displayName,
-    displayId,
-    includeImage,
-    includeName,
-    includeId,
-    includeDate,
-  ]);
+    }),
+    [
+      signatureData,
+      displayName,
+      displayId,
+      includeImage,
+      includeName,
+      includeId,
+      includeDate,
+    ],
+  );
+
+  const compose = useCallback(
+    (): Promise<string> =>
+      composeSignatureAppearance(appearanceOptions(formatNow())),
+    [appearanceOptions],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -242,14 +254,17 @@ const ServerCertSign = (props: BaseToolProps) => {
     const placed = previews[0];
     if (!placed || !selectedCert) return;
 
-    const appearance = await compose();
+    const options = appearanceOptions(formatNow());
     const params = {
       ...base.params.parameters,
       certId: selectedCert.id,
       name: displayName || selectedCert.name,
       outputFileName: outputName.trim(),
       placement: {
-        signatureData: appearance || placed.signatureData,
+        // The user's own image only; the text goes as text so the PDF draws real glyphs
+        // instead of a picture of them.
+        signatureData: (options.includeImage && options.signatureImage) || "",
+        lines: signatureAppearanceLines(options),
         page: placed.pageIndex,
         x: placed.x,
         y: placed.y,
@@ -263,7 +278,7 @@ const ServerCertSign = (props: BaseToolProps) => {
     base.operation,
     base.params.parameters,
     base.selectedFiles,
-    compose,
+    appearanceOptions,
     displayName,
     outputName,
   ]);

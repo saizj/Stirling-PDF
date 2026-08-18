@@ -96,6 +96,7 @@ public class ServerCertificateStoreController {
             @RequestParam(value = "pageNumber", required = false) Integer pageNumber,
             @RequestParam(value = "showLogo", defaultValue = "true") Boolean showLogo,
             @RequestParam(value = "signatureImage", required = false) String signatureImage,
+            @RequestParam(value = "appearanceLine", required = false) List<String> appearanceLines,
             @RequestParam(value = "x", required = false) Float x,
             @RequestParam(value = "y", required = false) Float y,
             @RequestParam(value = "width", required = false) Float width,
@@ -106,13 +107,11 @@ public class ServerCertificateStoreController {
         // sign() expects a 0-indexed page; the API takes 1-indexed (default page 1).
         int pageIndex = (pageNumber != null && pageNumber > 0) ? pageNumber - 1 : 0;
 
-        // Adobe-style path: a hand-drawn image placed at an explicit rectangle.
-        if (signatureImage != null
-                && !signatureImage.isBlank()
-                && x != null
-                && y != null
-                && width != null
-                && height != null) {
+        // Adobe-style path: a mark placed at an explicit rectangle. Either half can be absent —
+        // an image-only signature, or a text-only one.
+        boolean hasImage = signatureImage != null && !signatureImage.isBlank();
+        boolean hasLines = appearanceLines != null && !appearanceLines.isEmpty();
+        if ((hasImage || hasLines) && x != null && y != null && width != null && height != null) {
             VisibleSignatureService.Placement placement =
                     new VisibleSignatureService.Placement(pageIndex, x, y, width, height);
             byte[] signed =
@@ -121,7 +120,8 @@ public class ServerCertificateStoreController {
                             resolved.keyStore(),
                             resolved.password(),
                             placement,
-                            decodeImage(signatureImage),
+                            hasImage ? decodeImage(signatureImage) : null,
+                            appearanceLines,
                             name,
                             location,
                             reason);

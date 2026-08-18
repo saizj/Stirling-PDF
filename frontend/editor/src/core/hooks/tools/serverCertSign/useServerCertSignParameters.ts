@@ -4,9 +4,15 @@ import {
   BaseParametersHook,
 } from "@app/hooks/tools/shared/useBaseParameters";
 
-/** A signature placed on the PDF: image + rectangle as page fractions (top-left origin). */
+/** A signature placed on the PDF: mark + rectangle as page fractions (top-left origin). */
 export interface PlacedSignature {
-  signatureData: string; // Base64 PNG
+  /** Base64 PNG of the user's own image (drawing/logo); empty when the mark is text only. */
+  signatureData: string;
+  /**
+   * The text block, in order — the first line is the emphasised one. Sent separately from the
+   * image so the backend can draw it as real PDF text instead of stamping a picture of it.
+   */
+  lines: string[];
   page: number; // 0-indexed page
   x: number;
   y: number;

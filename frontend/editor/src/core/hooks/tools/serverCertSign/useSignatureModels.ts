@@ -79,7 +79,9 @@ export function useSignatureModels() {
   }, [refresh]);
 
   const saveModel = useCallback(
-    async (model: Omit<SignatureModel, "id">): Promise<SignatureModel | null> => {
+    async (
+      model: Omit<SignatureModel, "id">,
+    ): Promise<SignatureModel | null> => {
       try {
         const { data } = await apiClient.post<SignatureModel>(ENDPOINT, model);
         await refresh();

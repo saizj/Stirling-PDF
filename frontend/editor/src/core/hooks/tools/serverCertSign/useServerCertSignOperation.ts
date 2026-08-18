@@ -25,12 +25,18 @@ async function processServerCertSign(
   if (!file) throw new Error("No file selected");
   if (!params.certId) throw new Error("No certificate selected");
   if (!params.placement) throw new Error("No signature placed on the document");
+  if (!params.placement.signatureData && params.placement.lines.length === 0) {
+    throw new Error("The signature appearance is empty");
+  }
 
   const { placement } = params;
   const formData = new FormData();
   formData.append("fileInput", file);
   formData.append("certId", params.certId);
-  formData.append("signatureImage", placement.signatureData);
+  if (placement.signatureData) {
+    formData.append("signatureImage", placement.signatureData);
+  }
+  placement.lines.forEach((line) => formData.append("appearanceLine", line));
   formData.append("x", String(placement.x));
   formData.append("y", String(placement.y));
   formData.append("width", String(placement.width));
@@ -41,11 +47,9 @@ async function processServerCertSign(
   if (params.reason) formData.append("reason", params.reason);
   if (params.location) formData.append("location", params.location);
 
-  const response = await apiClient.post(
-    "/api/v1/certificates/sign",
-    formData,
-    { responseType: "blob" },
-  );
+  const response = await apiClient.post("/api/v1/certificates/sign", formData, {
+    responseType: "blob",
+  });
 
   const signed = createFileFromApiResponse(
     response.data,
