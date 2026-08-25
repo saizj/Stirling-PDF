@@ -4891,6 +4891,7 @@ welcomeSubtitle = "Completa la configuración de tu cuenta para empezar"
 welcomeTitle = "¡Has sido invitado!"
 
 [landing]
+workbenchEmptyStateHero = "Suelta un PDF en cualquier lugar"
 addFiles = "Agregar Archivos"
 mobileUpload = "Subir desde el móvil"
 openFromComputer = "Abrir desde el ordenador"

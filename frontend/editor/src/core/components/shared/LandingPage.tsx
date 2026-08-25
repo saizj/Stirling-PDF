@@ -1,15 +1,17 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Container } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
 import { useFileHandler } from "@app/hooks/useFileHandler";
 import { useFileActionTerminology } from "@app/hooks/useFileActionTerminology";
 import MobileUploadModal from "@app/components/shared/MobileUploadModal";
 import { openFilesFromDisk } from "@app/services/openFilesFromDisk";
-import { Logo } from "@app/ui/Logo";
+import { LandingDocumentStack } from "@app/components/shared/LandingDocumentStack";
 import { LandingActions } from "@app/components/shared/LandingActions";
 import "@app/components/shared/LandingPage.css";
 
 const LandingPage = () => {
+  const { t } = useTranslation();
   const { addFiles } = useFileHandler();
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const terminology = useFileActionTerminology();
@@ -75,15 +77,11 @@ const LandingPage = () => {
           },
         }}
       >
-        <Logo
-          variant="iconAndText"
-          orientation="vertical"
-          iconHeight="5rem"
-          textHeight="2.5rem"
-          gap="1rem"
-          className="landing-logo-enter"
-          style={{ marginBottom: "2.5rem" }}
-        />
+        <LandingDocumentStack />
+
+        <h3 className="landing-title">
+          {t("landing.workbenchEmptyStateHero", "Drop a PDF anywhere")}
+        </h3>
 
         <div className="landing-actions-enter">
           <LandingActions
