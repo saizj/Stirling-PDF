@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
-  Button as MantineButton,
   Collapse,
   Divider,
   Group,
@@ -52,12 +51,6 @@ interface ServerCertificate {
   signerId?: string;
   isDefault?: boolean;
 }
-
-const STORED_TYPE: Record<SignatureType, "canvas" | "image" | "text"> = {
-  draw: "canvas",
-  upload: "image",
-  type: "text",
-};
 
 /** Sentinel value for the "New appearance" entry in the saved-appearance dropdown. */
 const NEW_MODEL = "__new__";
@@ -421,10 +414,11 @@ const ServerCertSign = (props: BaseToolProps) => {
           )}
 
           {/* 2) Appearance properties — collapsed by default */}
-          <MantineButton
-            variant="subtle"
-            size="xs"
-            justify="space-between"
+          <Button
+            variant="tertiary"
+            accent="neutral"
+            size="sm"
+            justify="between"
             fullWidth
             rightSection={
               <ExpandMoreIcon
@@ -438,7 +432,7 @@ const ServerCertSign = (props: BaseToolProps) => {
             onClick={() => setPropertiesOpen((o) => !o)}
           >
             {t("serverCertSign.appearance.customize", "Customize appearance")}
-          </MantineButton>
+          </Button>
           <Collapse in={propertiesOpen}>
             <Stack gap="sm" pt="xs">
               {/* Signature (create / change) */}
@@ -521,13 +515,13 @@ const ServerCertSign = (props: BaseToolProps) => {
                   onChange={(e) => setModelName(e.currentTarget.value)}
                   style={{ flex: 1 }}
                 />
-                <MantineButton
-                  variant="light"
+                <Button
+                  variant="secondary"
                   onClick={handleSaveModel}
                   disabled={!modelName.trim()}
                 >
                   {t("serverCertSign.model.save", "Save")}
-                </MantineButton>
+                </Button>
               </Group>
             </Stack>
           </Collapse>

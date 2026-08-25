@@ -58,7 +58,7 @@ export default function CertificatesSection() {
         "/api/v1/certificates",
       );
       setCertificates(response.data ?? []);
-    } catch (e) {
+    } catch {
       setError(
         t(
           "settings.certificates.loadError",
@@ -88,7 +88,7 @@ export default function CertificatesSection() {
       setName("");
       setPassword("");
       await load();
-    } catch (e) {
+    } catch {
       setError(
         t(
           "settings.certificates.uploadError",
@@ -105,9 +105,12 @@ export default function CertificatesSection() {
     try {
       await apiClient.delete(`/api/v1/certificates/${id}`);
       await load();
-    } catch (e) {
+    } catch {
       setError(
-        t("settings.certificates.deleteError", "Could not delete the certificate."),
+        t(
+          "settings.certificates.deleteError",
+          "Could not delete the certificate.",
+        ),
       );
     }
   };
@@ -117,7 +120,7 @@ export default function CertificatesSection() {
     try {
       await apiClient.put(`/api/v1/certificates/${id}/default`);
       await load();
-    } catch (e) {
+    } catch {
       setError(
         t(
           "settings.certificates.defaultError",
@@ -136,7 +139,7 @@ export default function CertificatesSection() {
         <Text size="sm" c="dimmed">
           {t(
             "settings.certificates.description",
-            "Store certificates on the server to sign PDFs without re-entering the password each time. Pick the active one used by the \"Server\" signing mode.",
+            'Store certificates on the server to sign PDFs without re-entering the password each time. Pick the active one used by the "Server" signing mode.',
           )}
         </Text>
       </div>
@@ -153,8 +156,14 @@ export default function CertificatesSection() {
         </Title>
         <Stack gap="sm">
           <FileInput
-            label={t("settings.certificates.file", "Certificate file (.p12 / .pfx)")}
-            placeholder={t("settings.certificates.filePlaceholder", "Choose a file")}
+            label={t(
+              "settings.certificates.file",
+              "Certificate file (.p12 / .pfx)",
+            )}
+            placeholder={t(
+              "settings.certificates.filePlaceholder",
+              "Choose a file",
+            )}
             accept=".p12,.pfx"
             value={file}
             onChange={setFile}
@@ -203,7 +212,11 @@ export default function CertificatesSection() {
             <Stack gap="sm" mt="xs">
               {certificates.map((cert) => (
                 <Paper key={cert.id} withBorder p="sm" radius="md">
-                  <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Group
+                    justify="space-between"
+                    wrap="nowrap"
+                    align="flex-start"
+                  >
                     <Group align="flex-start" wrap="nowrap" gap="sm">
                       <Radio value={cert.id} mt={4} />
                       <div>
@@ -215,7 +228,8 @@ export default function CertificatesSection() {
                         )}
                         <Text size="xs" c="dimmed">
                           {t("settings.certificates.validity", "Valid")}:{" "}
-                          {formatDate(cert.validFrom)} → {formatDate(cert.validTo)}
+                          {formatDate(cert.validFrom)} →{" "}
+                          {formatDate(cert.validTo)}
                         </Text>
                       </div>
                     </Group>
@@ -225,7 +239,11 @@ export default function CertificatesSection() {
                       aria-label={t("settings.certificates.delete", "Delete")}
                       onClick={() => handleDelete(cert.id)}
                     >
-                      <LocalIcon icon="delete-rounded" width="1.25rem" height="1.25rem" />
+                      <LocalIcon
+                        icon="delete-rounded"
+                        width="1.25rem"
+                        height="1.25rem"
+                      />
                     </ActionIcon>
                   </Group>
                 </Paper>

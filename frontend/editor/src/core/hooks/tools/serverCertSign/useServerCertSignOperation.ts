@@ -9,6 +9,7 @@ import { createFileFromApiResponse } from "@app/utils/fileResponseUtils";
 import {
   ServerCertSignParameters,
   defaultParameters,
+  validateServerCertSignParameters,
 } from "@app/hooks/tools/serverCertSign/useServerCertSignParameters";
 
 /** Sanitises a user-entered file name and makes sure it ends in ".pdf". */
@@ -71,6 +72,7 @@ export const serverCertSignOperationConfig = defineCustomTool({
   customProcessor: processServerCertSign,
   operationType: "serverCertSign",
   defaultParameters,
+  validateParams: validateServerCertSignParameters,
 });
 
 export const useServerCertSignOperation = () => {

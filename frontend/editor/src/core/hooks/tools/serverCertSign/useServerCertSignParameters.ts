@@ -43,10 +43,19 @@ export const defaultParameters: ServerCertSignParameters = {
 export type ServerCertSignParametersHook =
   BaseParametersHook<ServerCertSignParameters>;
 
+/**
+ * Signing needs a certificate to sign with and a box to draw the signature in. Shared with the
+ * operation config as `validateParams` so a composer that never renders the panel judges the step
+ * by the same rule the Run button does.
+ */
+export const validateServerCertSignParameters = (
+  params: ServerCertSignParameters,
+) => !!params.certId && !!params.placement;
+
 export const useServerCertSignParameters = (): ServerCertSignParametersHook => {
   return useBaseParameters<ServerCertSignParameters>({
     defaultParameters,
     endpointName: "",
-    validateFn: (params) => !!params.certId && !!params.placement,
+    validateFn: validateServerCertSignParameters,
   });
 };

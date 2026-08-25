@@ -24,6 +24,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.AfterEach;
@@ -92,6 +94,12 @@ class RedactControllerMoreTest {
                             return tf;
                         });
 
+        // The controller re-opens its own output to verify the redaction held; the real factory
+        // parses that file, so the mock must too rather than handing back null.
+        lenient()
+                .when(pdfDocumentFactory.load(any(File.class)))
+                .thenAnswer(inv -> Loader.loadPDF(inv.<File>getArgument(0)));
+
         textRedactionService = new TextRedactionService();
         manualRedactionService = new ManualRedactionService(tempFileManager);
         controller =
@@ -122,12 +130,22 @@ class RedactControllerMoreTest {
                 .thenAnswer(inv -> Loader.loadPDF(pdfBytes));
     }
 
+    private PDFont helvetica(PDDocument doc) throws IOException {
+        try (InputStream is =
+                getClass().getResourceAsStream("/type3/library/fonts/dejavu/DejaVuSans.ttf")) {
+            if (is != null) {
+                return PDType0Font.load(doc, is);
+            }
+        }
+        return new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+    }
+
     private byte[] singlePageTextPdf(String... lines) throws IOException {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
             doc.addPage(page);
             try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), FONT_SIZE);
+                cs.setFont(helvetica(doc), FONT_SIZE);
                 for (int i = 0; i < lines.length; i++) {
                     cs.beginText();
                     cs.newLineAtOffset(LEFT_X, TOP_Y - i * 16f);
@@ -147,7 +165,7 @@ class RedactControllerMoreTest {
                 PDPage page = new PDPage(PDRectangle.LETTER);
                 doc.addPage(page);
                 try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                    cs.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), FONT_SIZE);
+                    cs.setFont(helvetica(doc), FONT_SIZE);
                     cs.beginText();
                     cs.newLineAtOffset(LEFT_X, TOP_Y);
                     cs.showText(line);
