@@ -12,6 +12,7 @@ import type { useFileActions, useFileState } from "@app/contexts/FileContext";
 import { PDFDocument, PDFPage } from "@app/types/pageEditor";
 import { FileId } from "@app/types/file";
 import { StirlingFileStub } from "@app/types/fileContext";
+import { convertImageToPdf, isImageFile } from "@app/utils/imageToPdfUtils";
 
 type FileActions = ReturnType<typeof useFileActions>["actions"];
 type FileSelectors = ReturnType<typeof useFileState>["selectors"];
@@ -293,18 +294,8 @@ export const usePageEditorCommands = ({
       insertAfterPage: number,
       isFromStorage?: boolean,
     ) => {
-      console.log("[PageEditor] handleInsertFiles called:", {
-        fileCount: files.length,
-        insertAfterPage,
-        isFromStorage,
-      });
-
       const workingDocument = getEditedDocument();
       if (!workingDocument || files.length === 0) {
-        console.log("[PageEditor] handleInsertFiles early return:", {
-          hasDocument: !!workingDocument,
-          fileCount: files.length,
-        });
         return;
       }
 
@@ -313,15 +304,10 @@ export const usePageEditorCommands = ({
           (p) => p.pageNumber === insertAfterPage,
         );
         if (!targetPage) {
-          console.log("[PageEditor] Target page not found:", insertAfterPage);
           return;
         }
 
         const insertAfterPageId = targetPage.id;
-        console.log("[PageEditor] Inserting files after page:", {
-          pageNumber: insertAfterPage,
-          pageId: insertAfterPageId,
-        });
 
         let addedFileIds: FileId[] = [];
         if (isFromStorage) {
@@ -332,15 +318,30 @@ export const usePageEditorCommands = ({
           });
           addedFileIds = result.map((file) => file.fileId);
         } else {
-          const result = await actions.addFiles(files as File[], {
+          // The page editor only renders PDF pages, so loose images (dropped
+          // in via "Insert File After") must become a PDF page first or
+          // they're silently excluded from the document.
+          const rawFiles = files as File[];
+          const preparedFiles = await Promise.all(
+            rawFiles.map(async (file) => {
+              if (!isImageFile(file)) return file;
+              try {
+                return await convertImageToPdf(file);
+              } catch (error) {
+                console.error(
+                  "Failed to convert image to PDF for insertion:",
+                  error,
+                );
+                return file;
+              }
+            }),
+          );
+
+          const result = await actions.addFiles(preparedFiles, {
             selectFiles: true,
             insertAfterPageId,
           });
           addedFileIds = result.map((file) => file.fileId);
-          console.log("[PageEditor] Files added to context:", {
-            addedCount: addedFileIds.length,
-            fileIds: addedFileIds,
-          });
         }
 
         await new Promise((resolve) => setTimeout(resolve, 100));

@@ -254,6 +254,62 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
     [openFilesModal, page.pageNumber, onSetStatus, onInsertFiles],
   );
 
+  // Editable page number badge - lets a page be moved to an arbitrary
+  // position by typing its target page number, instead of drag-and-drop.
+  const [isEditingPageNumber, setIsEditingPageNumber] = useState(false);
+  const [pageNumberDraft, setPageNumberDraft] = useState(
+    String(page.pageNumber),
+  );
+
+  useEffect(() => {
+    if (!isEditingPageNumber) {
+      setPageNumberDraft(String(page.pageNumber));
+    }
+  }, [page.pageNumber, isEditingPageNumber]);
+
+  const handlePageNumberBadgeClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isAnimating) return;
+      setPageNumberDraft(String(page.pageNumber));
+      setIsEditingPageNumber(true);
+    },
+    [isAnimating, page.pageNumber],
+  );
+
+  const commitPageNumberEdit = useCallback(() => {
+    setIsEditingPageNumber(false);
+    const parsed = parseInt(pageNumberDraft, 10);
+    if (Number.isNaN(parsed)) return;
+
+    const targetPageNumber = Math.min(Math.max(parsed, 1), totalPages);
+    if (targetPageNumber === page.pageNumber) return;
+
+    // ReorderPagesCommand shifts the target index left by one when the move
+    // is forward, so the caller must pre-compensate (see the move-right
+    // handler above for the same +1 trick).
+    const targetIndex =
+      targetPageNumber > page.pageNumber
+        ? targetPageNumber
+        : targetPageNumber - 1;
+
+    onReorderPages(page.pageNumber, targetIndex);
+    onSetStatus(`Moved page ${page.pageNumber} to position ${targetPageNumber}`);
+  }, [pageNumberDraft, totalPages, page.pageNumber, onReorderPages, onSetStatus]);
+
+  const handlePageNumberKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.currentTarget.blur();
+      } else if (e.key === "Escape") {
+        setPageNumberDraft(String(page.pageNumber));
+        setIsEditingPageNumber(false);
+      }
+    },
+    [page.pageNumber],
+  );
+
   // Handle click vs drag differentiation
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsMouseDown(true);
@@ -534,25 +590,64 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
           )}
         </div>
 
-        <Text
-          className={styles.pageNumber}
-          size="sm"
-          fw={500}
-          style={{
-            color: "var(--mantine-color-white)", // Use theme token for consistency
-            position: "absolute",
-            top: 5,
-            left: 5,
-            background: "rgba(162, 201, 255, 0.8)",
-            padding: "6px 8px",
-            borderRadius: 8,
-            zIndex: 2,
-            opacity: 0,
-            transition: "opacity 0.2s ease-in-out",
-          }}
-        >
-          {page.pageNumber}
-        </Text>
+        {isEditingPageNumber ? (
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            value={pageNumberDraft}
+            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setPageNumberDraft(e.target.value)}
+            onKeyDown={handlePageNumberKeyDown}
+            onBlur={commitPageNumberEdit}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={styles.pageNumber}
+            style={{
+              color: "var(--mantine-color-white)",
+              position: "absolute",
+              top: 5,
+              left: 5,
+              background: "rgba(162, 201, 255, 0.8)",
+              padding: "4px 6px",
+              borderRadius: 8,
+              zIndex: 3,
+              opacity: 1,
+              border: "none",
+              outline: "none",
+              width: `${Math.max(2, pageNumberDraft.length + 1)}ch`,
+              fontSize: "var(--mantine-font-size-sm)",
+              fontWeight: 500,
+            }}
+          />
+        ) : (
+          <Text
+            className={styles.pageNumber}
+            size="sm"
+            fw={500}
+            title={`Click to move page ${page.pageNumber} to a different position`}
+            onClick={handlePageNumberBadgeClick}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              color: "var(--mantine-color-white)", // Use theme token for consistency
+              position: "absolute",
+              top: 5,
+              left: 5,
+              background: "rgba(162, 201, 255, 0.8)",
+              padding: "6px 8px",
+              borderRadius: 8,
+              zIndex: 2,
+              opacity: isHovered || isMobile ? 1 : 0,
+              cursor: "text",
+              transition: "opacity 0.2s ease-in-out",
+            }}
+          >
+            {page.pageNumber}
+          </Text>
+        )}
 
         <HoverActionMenu
           show={isHovered || isMobile}
