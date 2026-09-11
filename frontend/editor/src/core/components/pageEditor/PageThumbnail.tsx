@@ -14,6 +14,7 @@ import RotateRightIcon from "@mui/icons-material/RotateRight";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ContentCutIcon from "@mui/icons-material/ContentCut";
 import AddIcon from "@mui/icons-material/Add";
+import NumbersIcon from "@mui/icons-material/Numbers";
 import { PDFPage, PDFDocument } from "@app/types/pageEditor";
 import { useFilesModalContext } from "@app/contexts/FilesModalContext";
 import { getFileColorWithOpacity } from "@app/components/pageEditor/fileColors";
@@ -437,6 +438,12 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
         label: "Insert File After",
         onClick: handleInsertFileAfter,
       },
+      {
+        id: "goto",
+        icon: <NumbersIcon style={{ fontSize: 20 }} />,
+        label: "Move to Page…",
+        onClick: handlePageNumberBadgeClick,
+      },
     ],
     [
       pageIndex,
@@ -448,6 +455,7 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
       handleDelete,
       handleSplit,
       handleInsertFileAfter,
+      handlePageNumberBadgeClick,
       onReorderPages,
       onSetStatus,
     ],
