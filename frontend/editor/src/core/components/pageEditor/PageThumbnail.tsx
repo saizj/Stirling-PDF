@@ -5,7 +5,8 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { Text, Checkbox } from "@mantine/core";
+import { Text, Checkbox, Modal, NumberInput, Group } from "@mantine/core";
+import { Button } from "@app/ui/Button";
 import { useIsMobile } from "@app/hooks/useIsMobile";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
@@ -255,32 +256,33 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
     [openFilesModal, page.pageNumber, onSetStatus, onInsertFiles],
   );
 
-  // Editable page number badge - lets a page be moved to an arbitrary
-  // position by typing its target page number, instead of drag-and-drop.
-  const [isEditingPageNumber, setIsEditingPageNumber] = useState(false);
-  const [pageNumberDraft, setPageNumberDraft] = useState(
-    String(page.pageNumber),
+  // "Move to page" popup - lets a page be moved to an arbitrary position by
+  // typing its target page number, instead of drag-and-drop.
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [pageNumberDraft, setPageNumberDraft] = useState<number | string>(
+    page.pageNumber,
   );
 
-  useEffect(() => {
-    if (!isEditingPageNumber) {
-      setPageNumberDraft(String(page.pageNumber));
-    }
-  }, [page.pageNumber, isEditingPageNumber]);
-
-  const handlePageNumberBadgeClick = useCallback(
+  const handleOpenMoveModal = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (isAnimating) return;
-      setPageNumberDraft(String(page.pageNumber));
-      setIsEditingPageNumber(true);
+      setPageNumberDraft(page.pageNumber);
+      setIsMoveModalOpen(true);
     },
     [isAnimating, page.pageNumber],
   );
 
+  const closeMoveModal = useCallback(() => {
+    setIsMoveModalOpen(false);
+  }, []);
+
   const commitPageNumberEdit = useCallback(() => {
-    setIsEditingPageNumber(false);
-    const parsed = parseInt(pageNumberDraft, 10);
+    const parsed =
+      typeof pageNumberDraft === "number"
+        ? pageNumberDraft
+        : parseInt(pageNumberDraft, 10);
+    setIsMoveModalOpen(false);
     if (Number.isNaN(parsed)) return;
 
     const targetPageNumber = Math.min(Math.max(parsed, 1), totalPages);
@@ -300,15 +302,11 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
 
   const handlePageNumberKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      e.stopPropagation();
       if (e.key === "Enter") {
-        e.currentTarget.blur();
-      } else if (e.key === "Escape") {
-        setPageNumberDraft(String(page.pageNumber));
-        setIsEditingPageNumber(false);
+        commitPageNumberEdit();
       }
     },
-    [page.pageNumber],
+    [commitPageNumberEdit],
   );
 
   // Handle click vs drag differentiation
@@ -442,7 +440,7 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
         id: "goto",
         icon: <NumbersIcon style={{ fontSize: 20 }} />,
         label: "Move to Page…",
-        onClick: handlePageNumberBadgeClick,
+        onClick: handleOpenMoveModal,
       },
     ],
     [
@@ -455,7 +453,7 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
       handleDelete,
       handleSplit,
       handleInsertFileAfter,
-      handlePageNumberBadgeClick,
+      handleOpenMoveModal,
       onReorderPages,
       onSetStatus,
     ],
@@ -598,64 +596,30 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
           )}
         </div>
 
-        {isEditingPageNumber ? (
-          <input
-            type="number"
-            min={1}
-            max={totalPages}
-            value={pageNumberDraft}
-            autoFocus
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setPageNumberDraft(e.target.value)}
-            onKeyDown={handlePageNumberKeyDown}
-            onBlur={commitPageNumberEdit}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={styles.pageNumber}
-            style={{
-              color: "var(--mantine-color-white)",
-              position: "absolute",
-              top: 5,
-              left: 5,
-              background: "rgba(162, 201, 255, 0.8)",
-              padding: "4px 6px",
-              borderRadius: 8,
-              zIndex: 3,
-              opacity: 1,
-              border: "none",
-              outline: "none",
-              width: `${Math.max(2, pageNumberDraft.length + 1)}ch`,
-              fontSize: "var(--mantine-font-size-sm)",
-              fontWeight: 500,
-            }}
-          />
-        ) : (
-          <Text
-            className={styles.pageNumber}
-            size="sm"
-            fw={500}
-            title={`Click to move page ${page.pageNumber} to a different position`}
-            onClick={handlePageNumberBadgeClick}
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              color: "var(--mantine-color-white)", // Use theme token for consistency
-              position: "absolute",
-              top: 5,
-              left: 5,
-              background: "rgba(162, 201, 255, 0.8)",
-              padding: "6px 8px",
-              borderRadius: 8,
-              zIndex: 2,
-              opacity: isHovered || isMobile ? 1 : 0,
-              cursor: "text",
-              transition: "opacity 0.2s ease-in-out",
-            }}
-          >
-            {page.pageNumber}
-          </Text>
-        )}
+        <Text
+          className={styles.pageNumber}
+          size="sm"
+          fw={500}
+          title={`Click to move page ${page.pageNumber} to a different position`}
+          onClick={handleOpenMoveModal}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            color: "var(--mantine-color-white)", // Use theme token for consistency
+            position: "absolute",
+            top: 5,
+            left: 5,
+            background: "rgba(162, 201, 255, 0.8)",
+            padding: "6px 8px",
+            borderRadius: 8,
+            zIndex: 2,
+            opacity: isHovered || isMobile ? 1 : 0,
+            cursor: "pointer",
+            transition: "opacity 0.2s ease-in-out",
+          }}
+        >
+          {page.pageNumber}
+        </Text>
 
         <HoverActionMenu
           show={isHovered || isMobile}
@@ -664,6 +628,33 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
           className={styles.pageHoverControls}
         />
       </div>
+
+      <Modal
+        opened={isMoveModalOpen}
+        onClose={closeMoveModal}
+        title="Move to page"
+        centered
+        size="xs"
+      >
+        <NumberInput
+          label={`Current page: ${page.pageNumber} of ${totalPages}`}
+          value={pageNumberDraft}
+          onChange={setPageNumberDraft}
+          onKeyDown={handlePageNumberKeyDown}
+          min={1}
+          max={totalPages}
+          clampBehavior="strict"
+          data-autofocus
+        />
+        <Group justify="flex-end" mt="md">
+          <Button variant="tertiary" onClick={closeMoveModal}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={commitPageNumberEdit}>
+            Move
+          </Button>
+        </Group>
+      </Modal>
     </div>
   );
 };
