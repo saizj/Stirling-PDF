@@ -1,0 +1,648 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Alert,
+  Collapse,
+  Divider,
+  Group,
+  Image,
+  Modal,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { Icon } from "@editor/ui/Icon";
+import { createToolFlow } from "@editor/components/tools/shared/createToolFlow";
+import { useBaseTool } from "@editor/hooks/tools/shared/useBaseTool";
+import { BaseToolProps, ToolComponent } from "@editor/types/tool";
+import { useNavigation } from "@editor/contexts/NavigationContext";
+import { useSigningOverlay } from "@editor/contexts/SigningOverlayContext";
+import type {
+  SignatureOverlayAPI,
+  SignaturePreview,
+} from "@editor/components/viewer/viewerTypes";
+import { SegmentedControl } from "@editor/ui/SegmentedControl";
+import { Button } from "@editor/ui/Button";
+import { SignatureCreationStep } from "@editor/components/tools/certSign/steps/SignatureCreationStep";
+import { type SignatureType } from "@editor/components/shared/wetSignature/SignatureTypeSelector";
+import apiClient from "@editor/services/apiClient";
+import {
+  composeSignatureAppearance,
+  signatureAppearanceLines,
+  type SignatureAppearanceOptions,
+} from "@editor/utils/composeSignatureAppearance";
+import { useSignatureModels } from "@editor/hooks/tools/serverCertSign/useSignatureModels";
+import {
+  useServerCertSignParameters,
+  defaultParameters,
+} from "@editor/hooks/tools/serverCertSign/useServerCertSignParameters";
+import { useServerCertSignOperation } from "@editor/hooks/tools/serverCertSign/useServerCertSignOperation";
+
+interface ServerCertificate {
+  id: string;
+  name: string;
+  signerId?: string;
+  isDefault?: boolean;
+}
+
+/** Sentinel value for the "New appearance" entry in the saved-appearance dropdown. */
+const NEW_MODEL = "__new__";
+
+/** "Contrato.pdf" -> "Contrato" */
+const stripPdfExtension = (name: string): string => name.replace(/\.pdf$/i, "");
+
+const formatNow = (): string => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+const ServerCertSign = (props: BaseToolProps) => {
+  const { t } = useTranslation();
+  const { setWorkbench } = useNavigation();
+  const { setOverlay } = useSigningOverlay();
+  const { models, saveModel } = useSignatureModels();
+
+  const base = useBaseTool(
+    "serverCertSign",
+    useServerCertSignParameters,
+    useServerCertSignOperation,
+    props,
+  );
+
+  const overlayApiRef = useRef<SignatureOverlayAPI | null>(null);
+  const hasOpenedViewer = useRef(false);
+
+  const [certificates, setCertificates] = useState<ServerCertificate[]>([]);
+  const [selectedCertId, setSelectedCertId] = useState<string | null>(null);
+  const [placementMode, setPlacementMode] = useState(true);
+  const [previewCount, setPreviewCount] = useState(0);
+  const [hasSelectedAnnotation, setHasSelectedAnnotation] = useState(false);
+
+  // The drawn/typed/uploaded signature image.
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+
+  // Appearance toggles + editable text.
+  const [includeImage, setIncludeImage] = useState(true);
+  const [includeName, setIncludeName] = useState(true);
+  const [includeId, setIncludeId] = useState(true);
+  const [includeDate, setIncludeDate] = useState(true);
+  const [displayName, setDisplayName] = useState("");
+  const [displayId, setDisplayId] = useState("");
+  const [composedImage, setComposedImage] = useState<string | null>(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [outputName, setOutputName] = useState("");
+  const [modelName, setModelName] = useState("");
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+
+  // Create-signature modal state (reuses the shared wet-signature creation flow).
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createType, setCreateType] = useState<SignatureType>("draw");
+  const [createSignature, setCreateSignature] = useState<string | null>(null);
+  const [textValue, setTextValue] = useState("");
+  const [fontFamily, setFontFamily] = useState("Helvetica");
+  const [fontSize, setFontSize] = useState(16);
+  const [textColor, setTextColor] = useState("#000000");
+
+  const selectedCert =
+    certificates.find((c) => c.id === selectedCertId) ??
+    certificates.find((c) => c.isDefault) ??
+    certificates[0] ??
+    null;
+  const file = base.selectedFiles[0] ?? null;
+
+  useEffect(() => {
+    apiClient
+      .get<ServerCertificate[]>("/api/v1/certificates")
+      .then((r) => {
+        const list = r.data ?? [];
+        setCertificates(list);
+        const def = list.find((c) => c.isDefault) ?? list[0];
+        if (def) setSelectedCertId(def.id);
+      })
+      .catch(() => setCertificates([]));
+  }, []);
+
+  useEffect(() => {
+    if (selectedCert) base.params.updateParameter("certId", selectedCert.id);
+  }, [selectedCert?.id]);
+
+  // Pre-fill editable name/id from the selected certificate.
+  useEffect(() => {
+    if (selectedCert) {
+      setDisplayName(selectedCert.name ?? "");
+      setDisplayId(selectedCert.signerId ?? "");
+    }
+  }, [selectedCert?.id, selectedCert?.signerId]);
+
+  // Default output name: "<original name> Signed".
+  const signedSuffix = t("serverCertSign.output.suffix", "Signed");
+  useEffect(() => {
+    if (!file) return;
+    setOutputName(`${stripPdfExtension(file.name)} ${signedSuffix}`);
+  }, [file?.name, signedSuffix]);
+
+  useEffect(() => {
+    if (base.selectedFiles.length > 0 && !hasOpenedViewer.current) {
+      setWorkbench("viewer");
+      hasOpenedViewer.current = true;
+    }
+  }, [base.selectedFiles.length, setWorkbench]);
+
+  // One description of the appearance, used both to render the preview and to tell the
+  // backend what to draw — so the two can't drift apart.
+  const appearanceOptions = useCallback(
+    (date: string): SignatureAppearanceOptions => ({
+      signatureImage: signatureData,
+      name: displayName,
+      signerId: displayId,
+      date,
+      includeImage,
+      includeName,
+      includeId,
+      includeDate,
+    }),
+    [
+      signatureData,
+      displayName,
+      displayId,
+      includeImage,
+      includeName,
+      includeId,
+      includeDate,
+    ],
+  );
+
+  const compose = useCallback(
+    (): Promise<string> =>
+      composeSignatureAppearance(appearanceOptions(formatNow())),
+    [appearanceOptions],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    compose().then((data) => {
+      if (!cancelled) setComposedImage(data || null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [compose]);
+
+  const prevPreviewCount = useRef(0);
+  const handlePreviewsChange = useCallback((previews: SignaturePreview[]) => {
+    // After the first signature is placed, switch to "move" so the user edits
+    // that one instead of dropping another.
+    if (prevPreviewCount.current === 0 && previews.length > 0) {
+      setPlacementMode(false);
+    }
+    prevPreviewCount.current = previews.length;
+    setPreviewCount(previews.length);
+  }, []);
+
+  useEffect(() => {
+    setOverlay({
+      file,
+      signaturePlacementMode: placementMode,
+      signaturePlacementData: composedImage ?? undefined,
+      signaturePlacementType: "image",
+      onSignaturePreviewsChange: handlePreviewsChange,
+      signatureOverlayApiRef: overlayApiRef,
+    });
+  }, [file, placementMode, composedImage, handlePreviewsChange, setOverlay]);
+
+  useEffect(() => () => setOverlay(null), [setOverlay]);
+
+  useEffect(() => {
+    const check = () =>
+      setHasSelectedAnnotation(Boolean(overlayApiRef.current?.hasSelected?.()));
+    check();
+    const id = setInterval(check, 350);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleUseCreated = useCallback(() => {
+    if (!createSignature) return;
+    setSignatureData(createSignature);
+    setPlacementMode(true);
+    setCreateOpen(false);
+  }, [createSignature]);
+
+  const openCreateModal = useCallback(() => {
+    setCreateType("draw");
+    setCreateSignature(null);
+    setTextValue("");
+    setCreateOpen(true);
+  }, []);
+
+  const handleSign = useCallback(async () => {
+    const previews = overlayApiRef.current?.getSignaturePreviews() || [];
+    const placed = previews[0];
+    if (!placed || !selectedCert) return;
+
+    const options = appearanceOptions(formatNow());
+    const params = {
+      ...base.params.parameters,
+      certId: selectedCert.id,
+      name: displayName || selectedCert.name,
+      outputFileName: outputName.trim(),
+      placement: {
+        // The user's own image only; the text goes as text so the PDF draws real glyphs
+        // instead of a picture of them.
+        signatureData: (options.includeImage && options.signatureImage) || "",
+        lines: signatureAppearanceLines(options),
+        page: placed.pageIndex,
+        x: placed.x,
+        y: placed.y,
+        width: placed.width,
+        height: placed.height,
+      },
+    };
+    await base.operation.executeOperation(params, base.selectedFiles);
+  }, [
+    selectedCert,
+    base.operation,
+    base.params.parameters,
+    base.selectedFiles,
+    appearanceOptions,
+    displayName,
+    outputName,
+  ]);
+
+  const handleDeleteSelected = useCallback(() => {
+    overlayApiRef.current?.deleteSelected?.();
+  }, []);
+
+  const handleSaveModel = useCallback(async () => {
+    if (!modelName.trim()) return;
+    const saved = await saveModel({
+      name: modelName.trim(),
+      signatureData,
+      includeImage,
+      includeName,
+      includeId,
+      includeDate,
+    });
+    setModelName("");
+    if (saved) setSelectedModelId(saved.id);
+  }, [
+    modelName,
+    saveModel,
+    signatureData,
+    includeImage,
+    includeName,
+    includeId,
+    includeDate,
+  ]);
+
+  const applyModel = useCallback(
+    (id: string | null) => {
+      const model = models.find((m) => m.id === id);
+      if (!model) return;
+      setSignatureData(model.signatureData ?? null);
+      setIncludeImage(model.includeImage);
+      setIncludeName(model.includeName);
+      setIncludeId(model.includeId);
+      setIncludeDate(model.includeDate);
+    },
+    [models],
+  );
+
+  const handleModelChange = useCallback(
+    (value: string | null) => {
+      setSelectedModelId(value);
+      if (value === NEW_MODEL) {
+        // Start a fresh appearance — open the editor so the user can build it.
+        setPropertiesOpen(true);
+      } else if (value) {
+        applyModel(value);
+        setPropertiesOpen(false);
+      }
+    },
+    [applyModel],
+  );
+
+  // Select the first saved appearance by default.
+  useEffect(() => {
+    if (models.length > 0 && selectedModelId === null) {
+      setSelectedModelId(models[0].id);
+      applyModel(models[0].id);
+    }
+  }, [models, selectedModelId, applyModel]);
+
+  const certOptions = useMemo(
+    () => certificates.map((c) => ({ value: c.id, label: c.name })),
+    [certificates],
+  );
+  const modelOptions = useMemo(
+    () => models.map((m) => ({ value: m.id, label: m.name })),
+    [models],
+  );
+
+  const noCertificatesAtAll = certificates.length === 0;
+  const canSign = previewCount > 0 && !!selectedCert && !!signatureData;
+
+  const steps = [];
+
+  steps.push({
+    title: t("serverCertSign.steps.certificate", "Certificate"),
+    isCollapsed: false,
+    onCollapsedClick: undefined,
+    content: noCertificatesAtAll ? (
+      <Alert color="yellow" variant="light">
+        {t(
+          "serverCertSign.noCertificate",
+          "No certificate stored. Add one in Settings → Certificates first.",
+        )}
+      </Alert>
+    ) : (
+      <Select
+        label={t("serverCertSign.certificate.select", "Certificate")}
+        data={certOptions}
+        value={selectedCertId}
+        onChange={setSelectedCertId}
+        allowDeselect={false}
+        comboboxProps={{ withinPortal: true }}
+      />
+    ),
+  });
+
+  if (base.selectedFiles.length > 0 && !noCertificatesAtAll) {
+    steps.push({
+      title: t("serverCertSign.steps.appearance", "Signature appearance"),
+      isCollapsed: false,
+      onCollapsedClick: undefined,
+      content: (
+        <Stack gap="sm">
+          {/* Saved appearance dropdown (with a "New appearance" entry) */}
+          <Select
+            label={t("serverCertSign.model.saved", "Saved appearance")}
+            data={[
+              ...modelOptions,
+              {
+                value: NEW_MODEL,
+                label: t("serverCertSign.model.new", "New appearance"),
+              },
+            ]}
+            value={selectedModelId ?? NEW_MODEL}
+            onChange={handleModelChange}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+          />
+
+          {/* Live preview */}
+          {composedImage && (
+            <Paper withBorder p="xs" radius="md">
+              <Text size="xs" c="dimmed" mb={4}>
+                {t("serverCertSign.appearance.preview", "Preview")}
+              </Text>
+              <Image
+                src={composedImage}
+                alt="preview"
+                fit="contain"
+                h={80}
+                style={{ backgroundColor: "#fff" }}
+              />
+            </Paper>
+          )}
+
+          {/* 2) Appearance properties — collapsed by default */}
+          <Button
+            variant="tertiary"
+            accent="neutral"
+            size="sm"
+            justify="between"
+            fullWidth
+            rightSection={
+              <Icon
+                name="chevron-down"
+                size="1.1rem"
+                style={{
+                  transform: propertiesOpen ? "rotate(180deg)" : "none",
+                  transition: "transform 150ms",
+                }}
+              />
+            }
+            onClick={() => setPropertiesOpen((o) => !o)}
+          >
+            {t("serverCertSign.appearance.customize", "Customize appearance")}
+          </Button>
+          <Collapse in={propertiesOpen}>
+            <Stack gap="sm" pt="xs">
+              {/* Signature (create / change) */}
+              <Paper withBorder p="xs" radius="md">
+                <Group justify="space-between" wrap="nowrap">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="xs" c="dimmed">
+                      {t("serverCertSign.signature.title", "Signature")}
+                    </Text>
+                    {signatureData ? (
+                      <Image
+                        src={signatureData}
+                        alt="signature"
+                        fit="contain"
+                        h={40}
+                        style={{ backgroundColor: "#fff", borderRadius: 6 }}
+                      />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {t("serverCertSign.signature.none", "No signature yet")}
+                      </Text>
+                    )}
+                  </div>
+                  <Button
+                    variant="secondary"
+                    leftSection={<Icon name="pencil" size="1rem" />}
+                    onClick={openCreateModal}
+                  >
+                    {signatureData
+                      ? t("serverCertSign.signature.change", "Change")
+                      : t("serverCertSign.signature.create", "Create")}
+                  </Button>
+                </Group>
+              </Paper>
+
+              <Group gap="lg">
+                <Switch
+                  label={t("serverCertSign.appearance.image", "Image")}
+                  checked={includeImage}
+                  onChange={(e) => setIncludeImage(e.currentTarget.checked)}
+                />
+                <Switch
+                  label={t("serverCertSign.appearance.name", "Name")}
+                  checked={includeName}
+                  onChange={(e) => setIncludeName(e.currentTarget.checked)}
+                />
+                <Switch
+                  label={t("serverCertSign.appearance.id", "DNI/CIF")}
+                  checked={includeId}
+                  onChange={(e) => setIncludeId(e.currentTarget.checked)}
+                />
+                <Switch
+                  label={t("serverCertSign.appearance.date", "Date")}
+                  checked={includeDate}
+                  onChange={(e) => setIncludeDate(e.currentTarget.checked)}
+                />
+              </Group>
+              {includeName && (
+                <TextInput
+                  label={t("serverCertSign.appearance.name", "Name")}
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.currentTarget.value)}
+                />
+              )}
+              {includeId && (
+                <TextInput
+                  label={t("serverCertSign.appearance.id", "DNI/CIF")}
+                  value={displayId}
+                  onChange={(e) => setDisplayId(e.currentTarget.value)}
+                />
+              )}
+              <Group gap="xs" align="flex-end" wrap="nowrap">
+                <TextInput
+                  label={t("serverCertSign.model.saveAs", "Save appearance as")}
+                  placeholder={t(
+                    "serverCertSign.model.namePlaceholder",
+                    "Model name",
+                  )}
+                  value={modelName}
+                  onChange={(e) => setModelName(e.currentTarget.value)}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  variant="secondary"
+                  onClick={handleSaveModel}
+                  disabled={!modelName.trim()}
+                >
+                  {t("serverCertSign.model.save", "Save")}
+                </Button>
+              </Group>
+            </Stack>
+          </Collapse>
+
+          <Divider />
+
+          {/* 3) Placement controls — at the end of the block */}
+          <SegmentedControl
+            fullWidth
+            size="xs"
+            value={placementMode ? "place" : "move"}
+            onChange={(v) => setPlacementMode(v === "place")}
+            ariaLabel={t("serverCertSign.placement.title", "Place or move")}
+            options={[
+              {
+                value: "place",
+                label: (
+                  <Group gap={6} wrap="nowrap" justify="center">
+                    <Icon name="signature" size="1.1rem" />
+                    <span>{t("serverCertSign.placement.place", "Place")}</span>
+                  </Group>
+                ),
+              },
+              {
+                value: "move",
+                label: (
+                  <Group gap={6} wrap="nowrap" justify="center">
+                    <Icon name="move" size="1.1rem" />
+                    <span>{t("serverCertSign.placement.move", "Move")}</span>
+                  </Group>
+                ),
+              },
+            ]}
+          />
+          <Button
+            variant="tertiary"
+            accent="danger"
+            leftSection={<Icon name="trash" size="1.1rem" />}
+            onClick={handleDeleteSelected}
+            disabled={!hasSelectedAnnotation}
+            fullWidth
+          >
+            {t("serverCertSign.placement.delete", "Delete selected signature")}
+          </Button>
+        </Stack>
+      ),
+    });
+  }
+
+  if (base.selectedFiles.length > 0 && !noCertificatesAtAll) {
+    steps.push({
+      title: t("serverCertSign.output.title", "Output file"),
+      isCollapsed: false,
+      onCollapsedClick: undefined,
+      content: (
+        <TextInput
+          label={t("serverCertSign.output.name", "File name")}
+          value={outputName}
+          onChange={(e) => setOutputName(e.currentTarget.value)}
+          rightSection={
+            <Text size="xs" c="dimmed" pr={6}>
+              .pdf
+            </Text>
+          }
+          rightSectionWidth={40}
+        />
+      ),
+    });
+  }
+
+  return (
+    <>
+      {createToolFlow({
+        files: {
+          selectedFiles: base.selectedFiles,
+          isCollapsed: base.selectedFiles.length > 0,
+        },
+        steps,
+        executeButton: {
+          text: t("serverCertSign.sign.submit", "Sign PDF"),
+          isVisible: !base.hasResults,
+          loadingText: t("loading"),
+          onClick: handleSign,
+          endpointEnabled: true,
+          paramsValid: canSign,
+        },
+        review: {
+          isVisible: base.hasResults,
+          operation: base.operation,
+          title: t("serverCertSign.sign.results", "Signed PDF"),
+          onFileClick: base.handleThumbnailClick,
+          onUndo: base.handleUndo,
+        },
+      })}
+
+      <Modal
+        opened={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title={t("serverCertSign.signature.create", "Create signature")}
+        size="md"
+        withinPortal
+      >
+        <SignatureCreationStep
+          signatureType={createType}
+          onSignatureTypeChange={setCreateType}
+          signature={createSignature}
+          onSignatureChange={setCreateSignature}
+          signatureText={textValue}
+          fontFamily={fontFamily}
+          fontSize={fontSize}
+          textColor={textColor}
+          onSignatureTextChange={setTextValue}
+          onFontFamilyChange={setFontFamily}
+          onFontSizeChange={setFontSize}
+          onTextColorChange={setTextColor}
+          onNext={handleUseCreated}
+          nextLabel={t("serverCertSign.signature.use", "Use signature")}
+        />
+      </Modal>
+    </>
+  );
+};
+
+ServerCertSign.tool = () => useServerCertSignOperation;
+ServerCertSign.getDefaultParameters = () => defaultParameters;
+
+export default ServerCertSign as ToolComponent;

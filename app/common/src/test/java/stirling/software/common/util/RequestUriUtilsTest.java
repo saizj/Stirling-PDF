@@ -114,6 +114,16 @@ class RequestUriUtilsTest {
     }
 
     @Test
+    void testIsFrontendRoute_editorRouteOwnedByFrontend() {
+        // /editor (and its tool routes) is an SPA route: a direct-nav/refresh must
+        // serve index.html, not the auth filter's 302-to-/login. Regression test for
+        // the editor moving from / to /editor, whose refresh bounced processor users
+        // to the processor because the redirect dropped the return path.
+        assertTrue(RequestUriUtils.isFrontendRoute("", "/editor"));
+        assertTrue(RequestUriUtils.isFrontendRoute("/app", "/app/editor"));
+    }
+
+    @Test
     void testIsFrontendRoute_filesRouteOwnedByFrontend() {
         // /files and /files/<folder-uuid> are FileManagerView routes - they
         // must fall through to the SPA index.html, not get blocked by the
@@ -193,6 +203,25 @@ class RequestUriUtilsTest {
     @Test
     void testIsPublicAuthEndpoint_withContextPath() {
         assertTrue(RequestUriUtils.isPublicAuthEndpoint("/app/login", "/app"));
+    }
+
+    // --- share-link download API (public links are checked by the service) ---
+
+    @Test
+    void testIsPublicAuthEndpoint_shareLinkDownloadApi() {
+        assertTrue(
+                RequestUriUtils.isPublicAuthEndpoint(
+                        "/api/v1/storage/share-links/00dcac3a-fc7a-4989-9c4f-97745484d62f", ""));
+    }
+
+    @Test
+    void testIsPublicAuthEndpoint_shareLinkOtherApisStayProtected() {
+        assertFalse(
+                RequestUriUtils.isPublicAuthEndpoint(
+                        "/api/v1/storage/share-links/00dcac3a-fc7a-4989-9c4f-97745484d62f/metadata",
+                        ""));
+        assertFalse(
+                RequestUriUtils.isPublicAuthEndpoint("/api/v1/storage/share-links/accessed", ""));
     }
 
     // --- share-link SPA bootstrap ---
