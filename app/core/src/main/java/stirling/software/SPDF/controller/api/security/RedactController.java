@@ -258,7 +258,8 @@ public class RedactController {
                 RedactionTarget.ofText(
                         useRegex ? List.of() : terms,
                         useRegex ? terms : List.of(),
-                        wholeWordSearchBool);
+                        wholeWordSearchBool,
+                        caseSensitive);
 
         try (PDDocument document = pdfDocumentFactory.load(request.getFileInput())) {
             if (document == null) {

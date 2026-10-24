@@ -76,15 +76,30 @@ class RedactionVerificationService {
             List<String> exactTerms,
             List<String> regexPatterns,
             Map<Integer, List<PDRectangle>> areasByPage,
-            boolean wholeWordOnly) {
+            boolean wholeWordOnly,
+            boolean caseSensitive) {
 
         static RedactionTarget ofText(
                 List<String> exactTerms, List<String> regexPatterns, boolean wholeWordOnly) {
-            return new RedactionTarget(exactTerms, regexPatterns, Map.of(), wholeWordOnly);
+            return ofText(exactTerms, regexPatterns, wholeWordOnly, false);
+        }
+
+        /**
+         * {@code caseSensitive} must match the redaction itself: verifying case-insensitively after
+         * a case-sensitive redaction flags the text deliberately left in place as a leak and
+         * rasterizes its page.
+         */
+        static RedactionTarget ofText(
+                List<String> exactTerms,
+                List<String> regexPatterns,
+                boolean wholeWordOnly,
+                boolean caseSensitive) {
+            return new RedactionTarget(
+                    exactTerms, regexPatterns, Map.of(), wholeWordOnly, caseSensitive);
         }
 
         static RedactionTarget ofAreas(Map<Integer, List<PDRectangle>> areasByPage) {
-            return new RedactionTarget(List.of(), List.of(), areasByPage, false);
+            return new RedactionTarget(List.of(), List.of(), areasByPage, false, false);
         }
 
         boolean isEmpty() {
@@ -424,6 +439,7 @@ class RedactionVerificationService {
 
     private List<Pattern> compilePatterns(RedactionTarget target) {
         List<Pattern> patterns = new ArrayList<>();
+        int flags = target.caseSensitive() ? 0 : Pattern.CASE_INSENSITIVE;
 
         for (String term : target.exactTerms()) {
             if (term == null || term.isBlank()) {
@@ -445,7 +461,7 @@ class RedactionVerificationService {
             if (target.wholeWordOnly()) {
                 regex.append("\\b");
             }
-            patterns.add(Pattern.compile(regex.toString(), Pattern.CASE_INSENSITIVE));
+            patterns.add(Pattern.compile(regex.toString(), flags));
         }
 
         for (String regex : target.regexPatterns()) {
@@ -453,7 +469,7 @@ class RedactionVerificationService {
                 continue;
             }
             try {
-                patterns.add(Pattern.compile(regex, Pattern.CASE_INSENSITIVE));
+                patterns.add(Pattern.compile(regex, flags));
             } catch (PatternSyntaxException e) {
                 log.warn(
                         "[redact/verify] skipping invalid verification pattern '{}': {}",

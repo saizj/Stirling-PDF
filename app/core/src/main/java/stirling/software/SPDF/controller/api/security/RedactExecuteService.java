@@ -150,7 +150,11 @@ class RedactExecuteService {
 
             RedactionTarget verificationTarget =
                     new RedactionTarget(
-                            cleanList(textValues), cleanList(regexPatterns), coveredAreas, false);
+                            cleanList(textValues),
+                            cleanList(regexPatterns),
+                            coveredAreas,
+                            false,
+                            false);
 
             return manualRedactionService.finalizeRedaction(
                     document,

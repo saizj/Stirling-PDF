@@ -81,6 +81,21 @@ class RedactionVerificationServiceTest {
     }
 
     @Test
+    @DisplayName("Case-sensitive mode leaves text in another case alone")
+    void caseSensitiveModeIgnoresOtherCase() throws IOException {
+        try (PDDocument document = documentWithText("ticket fs-02 here")) {
+            Set<Integer> rasterized =
+                    service.secure(
+                            document,
+                            RedactionTarget.ofText(
+                                    List.of(), List.of("[A-Z]{2}-\\d+"), false, true));
+
+            assertTrue(rasterized.isEmpty(), "lower-case text was never a redaction target");
+            assertTrue(extractText(document).contains("fs-02"));
+        }
+    }
+
+    @Test
     @DisplayName("Whole-word mode ignores a term embedded in a longer word")
     void wholeWordModeIgnoresPartialMatch() throws IOException {
         try (PDDocument document = documentWithText("The starting line")) {
