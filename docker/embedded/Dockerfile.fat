@@ -4,7 +4,7 @@
 # Extra fonts for air-gapped environments
 # Uses pre-built base image for fast builds
 
-ARG BASE_VERSION=1.1.0@sha256:3bcc8e10d5319b7c0550cf41b96f6980e1552c974dc37aba462b74fa17c4b5e4
+ARG BASE_VERSION=1.2.0@sha256:2e97e233a716a4f32acb14c6af93999d6d9735a4e4b711338a24c8574a8c409f
 ARG BASE_IMAGE=stirlingtools/stirling-pdf-base:${BASE_VERSION}
 
 # Stage 1: Build the Java application and frontend
